@@ -1,0 +1,1841 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KS AGRO | ระบบตรวจสอบใบวางบิล</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#20282B;
+    --ink-soft:#5B6669;
+    --paper:#F7F4EE;
+    --panel:#FFFFFF;
+    --line:#E4DFD3;
+    --primary:#1C3B3A;      /* deep teal-slate - เสถียร น่าเชื่อถือ */
+    --primary-soft:#DCE6E4;
+    --gold:#B8863B;         /* สีมันสำปะหลังตากแห้ง */
+    --gold-soft:#F2E6D0;
+    --hq:#3B6EA5;
+    --hq-soft:#E1EBF5;
+    --branch:#C9922E;
+    --branch-soft:#FBEDD6;
+    --acct:#6B4C93;
+    --acct-soft:#EDE5F4;
+    --done:#3F7D58;
+    --done-soft:#E1EFE6;
+    --reject:#B33A3A;
+    --reject-soft:#F7E2E2;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;font-family:'Sarabun',sans-serif;background:var(--paper);color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  button{font-family:inherit;cursor:pointer;}
+  ::selection{background:var(--gold-soft);}
+
+  /* ---------- LOGIN ---------- */
+  #login-screen{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(184,134,59,0.10), transparent 40%),
+      radial-gradient(circle at 85% 80%, rgba(28,59,58,0.12), transparent 45%),
+      var(--paper);
+  }
+  .login-card{
+    width:100%;max-width:400px;background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);padding:36px 32px;box-shadow:0 20px 40px -20px rgba(28,59,58,0.25);
+  }
+  .brand-mark{
+    width:44px;height:44px;border-radius:10px;background:var(--primary);
+    display:flex;align-items:center;justify-content:center;color:var(--gold-soft);
+    font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:15px;margin-bottom:18px;
+  }
+  .login-card h1{font-size:20px;margin:0 0 4px;font-weight:700;}
+  .login-card p.sub{color:var(--ink-soft);font-size:13.5px;margin:0 0 26px;}
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:13px;font-weight:500;color:var(--ink-soft);margin-bottom:6px;}
+  .field input{
+    width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;font-size:14.5px;
+    background:#FCFBF8;font-family:inherit;color:var(--ink);
+  }
+  .field input:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent;}
+  .btn-primary{
+    width:100%;padding:12px;border:none;border-radius:9px;background:var(--primary);color:#fff;
+    font-size:14.5px;font-weight:600;letter-spacing:0.2px;
+  }
+  .btn-primary:hover{background:#16302F;}
+  .or-divider{display:flex;align-items:center;gap:10px;margin:20px 0;color:var(--ink-soft);font-size:12.5px;}
+  .or-divider::before,.or-divider::after{content:"";flex:1;height:1px;background:var(--line);}
+  .btn-google{
+    width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;background:#fff;
+    font-size:14px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:10px;color:var(--ink);
+  }
+  .btn-google:hover{background:#FAF8F3;}
+  .role-hint{margin-top:18px;font-size:12px;color:var(--ink-soft);text-align:center;}
+
+  /* ---------- APP SHELL ---------- */
+  #app{display:none;min-height:100vh;}
+  #app.active{display:flex;}
+  .sidebar{
+    width:230px;flex-shrink:0;background:var(--primary);color:#EFEFEA;padding:22px 16px;
+    display:flex;flex-direction:column;
+  }
+  .sidebar .brand-mark{background:var(--gold);color:var(--primary);margin-bottom:26px;}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:9px;color:#CBD8D6;
+    font-size:14px;font-weight:500;margin-bottom:3px;border:none;background:transparent;width:100%;text-align:left;
+  }
+  .nav-item .ic{width:18px;text-align:center;font-size:15px;}
+  .nav-item.active{background:rgba(255,255,255,0.1);color:#fff;}
+  .nav-item:hover{background:rgba(255,255,255,0.06);color:#fff;}
+  .sidebar-foot{margin-top:auto;border-top:1px solid rgba(255,255,255,0.12);padding-top:14px;font-size:12px;color:#9FB0AD;}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .topbar{
+    height:62px;flex-shrink:0;background:var(--panel);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+  }
+  .topbar h2{font-size:16.5px;margin:0;font-weight:600;}
+  .topbar-right{display:flex;align-items:center;gap:14px;}
+  .badge-role{
+    font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:100px;background:var(--gold-soft);color:#7A5A24;
+  }
+  .bell{position:relative;font-size:17px;color:var(--ink-soft);}
+  .bell .dot{position:absolute;top:-2px;right:-3px;width:8px;height:8px;border-radius:50%;background:var(--reject);}
+
+  .content{flex:1;overflow-y:auto;padding:26px 28px 90px;}
+
+  /* KPI cards */
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
+  .kpi-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;}
+  .kpi-card .label{font-size:12.5px;color:var(--ink-soft);margin-bottom:8px;}
+  .kpi-card .value{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;}
+  .kpi-card .sub{font-size:11.5px;margin-top:6px;color:var(--done);}
+
+  .grid-2{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-bottom:22px;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;}
+  .panel h3{margin:0 0 14px;font-size:14.5px;font-weight:600;}
+  .chart-wrap{height:230px;}
+
+  /* stepper */
+  .stepper{display:flex;align-items:center;gap:0;margin-top:10px;}
+  .step{display:flex;flex-direction:column;align-items:center;flex:1;position:relative;}
+  .step .dot{
+    width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:700;color:#fff;z-index:1;
+  }
+  .step .lbl{font-size:10px;color:var(--ink-soft);margin-top:5px;text-align:center;}
+  .step-line{position:absolute;top:11px;left:50%;width:100%;height:2px;background:var(--line);z-index:0;}
+  .step:last-child .step-line{display:none;}
+  .step.done .dot{background:var(--done);}
+  .step.done .step-line{background:var(--done);}
+  .step.current .dot{background:var(--gold);}
+  .step.pending .dot{background:#D8D2C4;color:#8A8371;}
+
+  /* transactions list */
+  .filter-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+  .filter-bar select,.filter-bar input{
+    padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;background:#fff;
+  }
+  .txn-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;
+  }
+  .txn-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .txn-id{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);}
+  .txn-title{font-size:15px;font-weight:600;margin:3px 0 2px;}
+  .txn-meta{font-size:12.5px;color:var(--ink-soft);}
+  .amount{font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;text-align:right;}
+  .amount .cur{font-size:11px;color:var(--ink-soft);font-weight:500;}
+  .status-pill{
+    font-size:11px;font-weight:600;padding:4px 10px;border-radius:100px;white-space:nowrap;
+  }
+  .st-hq{background:var(--hq-soft);color:var(--hq);}
+  .st-branch{background:var(--branch-soft);color:var(--branch);}
+  .st-acct{background:var(--acct-soft);color:var(--acct);}
+  .st-mgmt{background:#F5E1EA;color:#A33B76;}
+  .st-done{background:var(--done-soft);color:var(--done);}
+  .txn-actions{display:flex;gap:8px;margin-top:14px;}
+  .btn-approve{
+    padding:8px 16px;border:none;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:600;
+  }
+  .btn-approve:hover{background:#16302F;}
+  .btn-reject{
+    padding:8px 16px;border:1px solid var(--reject);border-radius:8px;background:#fff;color:var(--reject);font-size:13px;font-weight:600;
+  }
+  .btn-reject:hover{background:var(--reject-soft);}
+
+  /* new transaction form */
+  .upload-zone{
+    border:2px dashed var(--line);border-radius:var(--radius);padding:34px 20px;text-align:center;
+    background:#FCFBF8;cursor:pointer;transition:border-color .15s;
+  }
+  .upload-zone:hover{border-color:var(--gold);}
+  .upload-zone .ic{font-size:28px;margin-bottom:8px;}
+  .upload-zone .txt{font-size:14px;font-weight:500;}
+  .upload-zone .sub{font-size:12px;color:var(--ink-soft);margin-top:4px;}
+  .ai-status{
+    display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:9px;background:var(--gold-soft);
+    color:#7A5A24;font-size:13px;font-weight:500;margin-top:14px;
+  }
+  .spinner{
+    width:14px;height:14px;border:2px solid #7A5A24;border-top-color:transparent;border-radius:50%;
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px;}
+  .form-grid .full{grid-column:1/-1;}
+  .ai-filled{background:var(--gold-soft) !important;border-color:var(--gold) !important;}
+  .ai-tag{font-size:10px;color:var(--gold);font-weight:600;margin-left:6px;}
+
+  .checklist{display:flex;flex-direction:column;gap:9px;}
+  .check-item{font-size:13.5px;padding:9px 12px;border-radius:8px;font-weight:500;}
+  .check-item.got{background:var(--done-soft);color:var(--done);}
+  .check-item.missing{background:#F0EDE3;color:var(--ink-soft);}
+
+  .dept-badges{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+  .dept-badge{
+    display:flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:100px;
+  }
+  .dept-badge.pending{background:#F7E2E2;color:#B33A3A;}
+  .dept-badge.done{background:var(--done-soft);color:var(--done);}
+  .line-item-row{
+    display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #F0EDE3;font-size:13px;
+  }
+  .line-item-row .dept-badges{margin-top:4px;}
+
+  /* modal */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(20,28,27,0.5);z-index:50;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .modal-box{
+    background:var(--panel);border-radius:var(--radius);width:100%;max-width:560px;max-height:88vh;
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  .modal-head{
+    display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--line);
+  }
+  .modal-head h3{margin:0;font-size:16px;}
+  .modal-close{background:none;border:none;font-size:16px;color:var(--ink-soft);}
+  .modal-body{padding:18px 20px;overflow-y:auto;flex:1;}
+  .modal-foot{display:flex;gap:8px;padding:14px 20px;border-top:1px solid var(--line);flex-wrap:wrap;}
+  .detail-row{display:flex;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px solid #F0EDE3;font-size:13.5px;}
+  .detail-row .k{color:var(--ink-soft);}
+  .detail-row .v{font-weight:600;text-align:right;}
+  .detail-row input{
+    text-align:right;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:13.5px;width:160px;
+  }
+
+  /* mobile bottom nav */
+  .bottom-nav{display:none;}
+
+  @media (max-width: 880px){
+    .sidebar{display:none;}
+    #app.active{flex-direction:column;}
+    .content{padding:18px 16px 90px;}
+    .kpi-row{grid-template-columns:repeat(2,1fr);}
+    .grid-2{grid-template-columns:1fr;}
+    .form-grid{grid-template-columns:1fr;}
+    .bottom-nav{
+      display:flex;position:fixed;bottom:0;left:0;right:0;height:64px;background:var(--panel);
+      border-top:1px solid var(--line);z-index:20;
+    }
+    .bottom-nav button{
+      flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:3px;color:var(--ink-soft);font-size:10.5px;
+    }
+    .bottom-nav button.active{color:var(--primary);font-weight:600;}
+    .bottom-nav .ic{font-size:17px;}
+    .topbar{padding:0 16px;}
+  }
+  @media print {
+    .sidebar, .topbar, .bottom-nav, .modal-overlay { display:none !important; }
+    .content { padding:0 !important; }
+    #page-dashboard, #page-list, #page-new, #page-contracts { display:none !important; }
+    #page-invoice { display:block !important; }
+    body { background:#fff; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="brand-mark">KS</div>
+    <h1>ระบบตรวจสอบใบวางบิล</h1>
+    <p class="sub">KS AGRO Co., Ltd. — เข้าสู่ระบบด้วยอีเมลบริษัท</p>
+
+    <div class="field">
+      <label>อีเมล</label>
+      <input id="loginEmail" type="email" placeholder="name@ksagro.co.th" value="branch.a@ksagro.co.th">
+    </div>
+    <div class="field">
+      <label>รหัสผ่าน</label>
+      <input id="loginPassword" type="password" placeholder="••••••••">
+    </div>
+    <div id="loginError" style="display:none;color:#B33A3A;font-size:13px;margin-bottom:12px;"></div>
+    <button class="btn-primary" id="loginBtn" onclick="doLogin()">เข้าสู่ระบบ</button>
+
+    <div class="or-divider">หรือ</div>
+    <button class="btn-google" onclick="alert('ยังไม่ได้ตั้งค่า Google OAuth ในระบบ ใช้อีเมล+รหัสผ่านไปก่อนครับ')">
+      <span style="font-size:15px;">🔐</span> เข้าสู่ระบบด้วย Google Workspace
+    </button>
+
+    <p class="role-hint">โหมดทดลอง (ไม่ต่อฐานข้อมูลจริง): <span id="roleSwitcher" style="text-decoration:underline;cursor:pointer;color:var(--primary);font-weight:600;" onclick="cycleRole()">สาขา A</span> — <span onclick="doLogin(true)" style="text-decoration:underline;cursor:pointer;color:var(--primary);">เข้าโหมดทดลอง</span></p>
+  </div>
+</div>
+
+<!-- ============ APP SHELL ============ -->
+<div id="app">
+  <aside class="sidebar">
+    <div class="brand-mark">KS</div>
+    <button class="nav-item active" data-page="dashboard"><span class="ic">◆</span> แดชบอร์ด</button>
+    <button class="nav-item" data-page="list"><span class="ic">☰</span> รายการตรวจสอบ</button>
+    <button class="nav-item" data-page="new"><span class="ic">＋</span> เพิ่มรายการใหม่</button>
+    <button class="nav-item" data-page="newcontract"><span class="ic">📁</span> สร้างสัญญา/อินวอยซ์ใหม่</button>
+    <button class="nav-item" data-page="contracts"><span class="ic">▤</span> สัญญา</button>
+    <button class="nav-item" data-page="invoice"><span class="ic">🧾</span> รายละเอียดอินวอยซ์</button>
+    <div class="sidebar-foot">
+      KS AGRO / KOSON GROUP<br>v0.1 — ต้นแบบ UI
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <h2 id="pageTitle">แดชบอร์ด</h2>
+      <div class="topbar-right">
+        <span class="bell">🔔<span class="dot"></span></span>
+        <span class="badge-role" id="roleBadge">สาขา A</span>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ---------- DASHBOARD PAGE ---------- -->
+      <div id="page-dashboard">
+        <div id="dashboardStatus" style="padding:12px 0;color:var(--ink-soft);font-size:13px;">กำลังโหลดข้อมูลแดชบอร์ด...</div>
+        <div class="kpi-row">
+          <div class="kpi-card">
+            <div class="label">รอตรวจสอบทั้งหมด</div>
+            <div class="value mono" id="kpiPending">-</div>
+            <div class="sub">รายการ (ยังไม่เสร็จสิ้น)</div>
+          </div>
+          <div class="kpi-card">
+            <div class="label">ยอดรวมเดือนนี้ (THB)</div>
+            <div class="value mono" id="kpiThbMonth">-</div>
+            <div class="sub" id="kpiThbSub">&nbsp;</div>
+          </div>
+          <div class="kpi-card">
+            <div class="label">ยอดรวมเดือนนี้ (USD)</div>
+            <div class="value mono" id="kpiUsdMonth">-</div>
+            <div class="sub" id="kpiUsdSub">&nbsp;</div>
+          </div>
+          <div class="kpi-card">
+            <div class="label">เสร็จสิ้นแล้ว</div>
+            <div class="value mono" id="kpiCompleted">-</div>
+            <div class="sub">รายการ (จ่ายเรียบร้อย)</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <h3>แนวโน้มค่าใช้จ่ายรายเดือน (THB)</h3>
+            <div class="chart-wrap"><canvas id="lineChart"></canvas></div>
+          </div>
+          <div class="panel">
+            <h3>สัดส่วนตามประเภทค่าใช้จ่าย (นับจำนวนบิล)</h3>
+            <div class="chart-wrap"><canvas id="donutChart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <h3>เปรียบเทียบยอดค่าใช้จ่ายตามสาขา (THB)</h3>
+            <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+          </div>
+          <div class="panel">
+            <h3>สถานะรายการปัจจุบัน</h3>
+            <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- LIST PAGE ---------- -->
+      <div id="page-list" style="display:none;">
+        <div class="filter-bar">
+          <select><option>ทุกสาขา</option><option>สาขา A</option><option>สาขา B</option></select>
+          <select><option>ทุกสถานะ</option><option>รอ สนญ.</option><option>รอสาขา</option><option>รอบัญชี</option><option>เสร็จสิ้น</option></select>
+          <select><option>ทุกสกุลเงิน</option><option>THB</option><option>USD</option><option>CNY</option></select>
+          <input type="text" placeholder="ค้นหาเลขที่ใบวางบิล...">
+        </div>
+
+        <div id="txnListStatus" style="padding:20px;text-align:center;color:var(--ink-soft);">กำลังโหลดข้อมูล...</div>
+        <div id="txnListContainer"></div>
+      </div>
+
+      <!-- ---------- INVOICE (NO.) DETAIL MODAL ---------- -->
+      <div id="invoiceModal" class="modal-overlay" style="display:none;">
+        <div class="modal-box" style="max-width:680px;">
+          <div class="modal-head">
+            <h3 id="invoiceModalTitle">รายละเอียดอินวอยซ์</h3>
+            <button class="modal-close" onclick="closeInvoiceModal()">✕</button>
+          </div>
+          <div class="modal-body" id="invoiceModalBody"></div>
+        </div>
+      </div>
+
+      <!-- ---------- TRANSACTION DETAIL MODAL ---------- -->
+      <div id="detailModal" class="modal-overlay" style="display:none;z-index:60;">
+        <div class="modal-box">
+          <div class="modal-head">
+            <button class="modal-close" id="backToInvoiceBtn" onclick="backToInvoice()" style="display:none;font-size:13px;">← กลับ</button>
+            <h3 id="modalTitle">รายละเอียดรายการ</h3>
+            <button class="modal-close" onclick="closeDetail()">✕</button>
+          </div>
+          <div class="modal-body" id="modalBody"></div>
+          <div class="modal-foot">
+            <button class="btn-approve" id="editSaveBtn" onclick="toggleOrSaveEdit()">✎ แก้ไข</button>
+            <button class="btn-reject" onclick="confirmDelete()">🗑 ลบรายการ</button>
+            <span style="flex:1;"></span>
+            <button class="btn-approve" style="background:var(--gold);" onclick="exportOneExcel()">⬇ Excel</button>
+            <button class="btn-approve" style="background:#6b4c93;" onclick="exportOnePDF()">⬇ PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- NEW TRANSACTION PAGE ---------- -->
+      <div id="page-new" style="display:none;">
+        <div class="panel" style="max-width:720px;">
+          <h3>เพิ่มรายการวางบิลใหม่</h3>
+
+          <div class="field full">
+            <label>เลือกอินวอยซ์ (สัญญา/NO.)</label>
+            <select id="newInvoiceSelect" style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;font-size:14.5px;background:#FCFBF8;font-family:inherit;">
+              <option value="">-- กำลังโหลดรายการอินวอยซ์... --</option>
+            </select>
+          </div>
+
+          <div class="form-grid">
+            <div class="field">
+              <label>สาขา</label>
+              <select id="newBranchSelect" style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;font-size:14.5px;background:#FCFBF8;font-family:inherit;">
+                <option value="">-- กำลังโหลดสาขา... --</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>ประเภทค่าใช้จ่าย</label>
+              <input id="newCategory" placeholder="เช่น ค่าระวางเรือ">
+            </div>
+            <div class="field">
+              <label>บริษัท/หน่วยงานที่วางบิล</label>
+              <input id="newVendor" placeholder="เช่น บริษัทชิปปิ้ง เอบีซี">
+            </div>
+            <div class="field">
+              <label>เลขที่ใบวางบิล</label>
+              <input id="newBillNo">
+            </div>
+            <div class="field">
+              <label>วันที่ใบกำกับ/วางบิล</label>
+              <input id="newBillDate" type="date">
+            </div>
+            <div class="field">
+              <label>รับวางบิลวันที่</label>
+              <input id="newBillReceivedDate" type="date">
+            </div>
+            <div class="field">
+              <label>สกุลเงิน</label>
+              <select id="newCurrency" style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;font-size:14.5px;background:#FCFBF8;font-family:inherit;">
+                <option>THB</option><option>USD</option><option>CNY</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>ยอดก่อน VAT</label>
+              <input id="newAmountBeforeVat" class="mono" type="number" step="0.01">
+            </div>
+            <div class="field">
+              <label>VAT</label>
+              <input id="newVat" class="mono" type="number" step="0.01">
+            </div>
+            <div class="field">
+              <label>ยอดรวม</label>
+              <input id="newTotal" class="mono" type="number" step="0.01">
+            </div>
+            <div class="field">
+              <label>เครดิต (วัน)</label>
+              <input id="newCreditDays" type="number">
+            </div>
+            <div class="field">
+              <label>กำหนดชำระวันที่</label>
+              <input id="newPaymentDue" type="date">
+            </div>
+            <div class="field full">
+              <label>หมายเหตุ</label>
+              <input id="newNote" placeholder="ไม่บังคับ">
+            </div>
+            <div class="field full">
+              <label>แนบไฟล์ใบวางบิล (ไม่บังคับตอนนี้ แนบเพิ่มทีหลังได้)</label>
+              <input type="file" id="newFileInput">
+            </div>
+          </div>
+
+          <div id="newTxnError" style="display:none;color:#B33A3A;font-size:13px;margin-top:12px;"></div>
+
+          <button class="btn-primary" style="background:var(--gold);margin-top:18px;" id="newTxnSaveBtn" onclick="saveNewTransaction()">
+            บันทึกรายการ → ส่งให้สำนักงานใหญ่ตรวจสอบ
+          </button>
+        </div>
+      </div>
+
+      <!-- ---------- INVOICE DETAIL PAGE (เต็มรูปแบบ พิมพ์ได้) ---------- -->
+      <div id="page-invoice" style="display:none;">
+        <div id="invoiceDetailPageBody">
+          <div class="panel"><p style="color:var(--ink-soft);">เลือกอินวอยซ์จากหน้า "รายการตรวจสอบ" แล้วกด "ดูรายละเอียดเต็ม/พิมพ์" เพื่อแสดงข้อมูลที่นี่</p></div>
+        </div>
+      </div>
+
+      <!-- ---------- NEW CONTRACT/INVOICE PAGE ---------- -->
+      <div id="page-newcontract" style="display:none;">
+        <div class="panel" style="max-width:760px;">
+          <h3>สร้างสัญญา/อินวอยซ์ใหม่</h3>
+
+          <div class="field full">
+            <label>เลือกโหมด</label>
+            <select id="ncMode" onchange="toggleContractMode()" style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;font-size:14.5px;background:#FCFBF8;font-family:inherit;">
+              <option value="new">สร้างสัญญาใหม่ทั้งหมด (พร้อมอินวอยซ์งวดแรก)</option>
+              <option value="existing">เพิ่มอินวอยซ์งวดใหม่ให้สัญญาเดิมที่มีอยู่แล้ว</option>
+            </select>
+          </div>
+
+          <div id="ncExistingContractField" style="display:none;" class="field full">
+            <label>เลือกสัญญาเดิม</label>
+            <select id="ncExistingContract" style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;font-size:14.5px;background:#FCFBF8;font-family:inherit;">
+              <option value="">-- กำลังโหลด... --</option>
+            </select>
+          </div>
+
+          <div id="ncContractFields">
+            <h3 style="margin-top:20px;">ข้อมูลสัญญา</h3>
+            <div class="form-grid">
+              <div class="field"><label>เลขที่สัญญา</label><input id="ncContractNo" placeholder="เช่น KSAGRO/TS2026-010"></div>
+              <div class="field"><label>ชื่อลูกค้า</label><input id="ncCustomerName"></div>
+              <div class="field"><label>นายหน้า (Broker)</label><input id="ncBroker"></div>
+              <div class="field"><label>ประเภทตลาด</label>
+                <select id="ncMarketType" style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;font-size:14.5px;background:#FCFBF8;font-family:inherit;">
+                  <option value="export">ส่งออก (export)</option><option value="domestic">ขายในประเทศ (domestic)</option>
+                </select>
+              </div>
+              <div class="field"><label>ประเภทสินค้า</label><input id="ncProductType" placeholder="เช่น tapioca starch"></div>
+              <div class="field"><label>วันที่ทำสัญญา</label><input id="ncContractDate" type="date"></div>
+            </div>
+          </div>
+
+          <h3 style="margin-top:20px;">ข้อมูลอินวอยซ์ (งวดนี้)</h3>
+          <div class="form-grid">
+            <div class="field"><label>เลขที่อินวอยซ์</label><input id="ncInvoiceNo" placeholder="เช่น KSAGRO/TS2026-010A"></div>
+            <div class="field"><label>APPLICATION NAME</label><input id="ncApplicationName"></div>
+            <div class="field"><label>สกุลเงิน</label>
+              <select id="ncCurrency" style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;font-size:14.5px;background:#FCFBF8;font-family:inherit;">
+                <option>USD</option><option>THB</option><option>CNY</option>
+              </select>
+            </div>
+            <div class="field"><label>มูลค่าอินวอยซ์ (TOTAL AMOUNT)</label><input id="ncInvoiceValue" type="number" step="0.01"></div>
+            <div class="field"><label>จำนวนตู้</label><input id="ncContainerCount" type="number"></div>
+            <div class="field"><label>จำนวนตัน</label><input id="ncTonnage" type="number" step="0.01"></div>
+            <div class="field"><label>แพ็คกิ้ง (กก.)</label><input id="ncPackingKgs" type="number"></div>
+            <div class="field"><label>ราคาที่ใช้ขายจริง (basis)</label>
+              <select id="ncPriceBasis" style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;font-size:14.5px;background:#FCFBF8;font-family:inherit;">
+                <option value="">-- เลือก --</option><option>FOB</option><option>CFR</option><option>CIF</option>
+              </select>
+            </div>
+            <div class="field"><label>ราคา/MT</label><input id="ncPricePerMt" type="number" step="0.01"></div>
+            <div class="field"><label>EXCHANGE BASE RATE (บาท/USD)</label><input id="ncExchangeRate" type="number" step="0.0001"></div>
+            <div class="field"><label>FORWARDER</label><input id="ncForwarder"></div>
+            <div class="field"><label>BOOKING NO.</label><input id="ncBookingNo"></div>
+            <div class="field"><label>วันที่ส่งของ (shipment date)</label><input id="ncShipmentDate" type="date"></div>
+          </div>
+
+          <div id="ncError" style="display:none;color:#B33A3A;font-size:13px;margin-top:12px;"></div>
+
+          <button class="btn-primary" style="background:var(--gold);margin-top:18px;" id="ncSaveBtn" onclick="saveNewContractInvoice()">
+            บันทึกและไปหน้าเพิ่มรายการค่าใช้จ่าย →
+          </button>
+        </div>
+      </div>
+
+      <!-- ---------- CONTRACTS PAGE ---------- -->
+      <div id="page-contracts" style="display:none;">
+        <div id="contractsStatus" style="padding:12px 0;color:var(--ink-soft);font-size:13px;">กำลังโหลดข้อมูลสัญญา...</div>
+        <div id="contractsContainer"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- mobile bottom nav -->
+<div class="bottom-nav">
+  <button class="active" data-page="dashboard"><span class="ic">◆</span>แดชบอร์ด</button>
+  <button data-page="list"><span class="ic">☰</span>รายการ</button>
+  <button data-page="new"><span class="ic">＋</span>เพิ่ม</button>
+  <button data-page="contracts"><span class="ic">▤</span>สัญญา</button>
+  <button data-page="invoice"><span class="ic">🧾</span>อินวอยซ์</button>
+</div>
+
+<script>
+  const roles = ["สาขา A","สำนักงานใหญ่","ฝ่ายบัญชี"];
+  let roleIdx = 0;
+  function cycleRole(){
+    roleIdx = (roleIdx+1) % roles.length;
+    document.getElementById('roleSwitcher').textContent = roles[roleIdx];
+  }
+  // ===== เชื่อมต่อ Supabase จริง =====
+  const SUPABASE_URL = "https://mxgmpyublrshsvwltcbp.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14Z21weXVibHJzaHN2d2x0Y2JwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1MjQxNzIsImV4cCI6MjEwMDEwMDE3Mn0.1VoKiNLbUaW03hjKQLvfE9SEyvBTFQHu0CQVd3B-cxw";
+
+  let currentSession = null;   // { access_token, user: {id, email} }
+  let currentProfile = null;   // { full_name, role, branch_id }
+
+  async function doLogin(demoMode) {
+    if (demoMode) { doLoginDemo(); return; }
+
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const errBox = document.getElementById('loginError');
+    const btn = document.getElementById('loginBtn');
+    errBox.style.display = 'none';
+
+    if (!email || !password) {
+      errBox.textContent = 'กรุณากรอกอีเมลและรหัสผ่าน';
+      errBox.style.display = 'block';
+      return;
+    }
+
+    btn.textContent = 'กำลังเข้าสู่ระบบ...';
+    btn.disabled = true;
+
+    try {
+      // ขั้น 1: login ผ่าน Supabase Auth
+      const authRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+        body: JSON.stringify({ email, password })
+      });
+      const authData = await authRes.json();
+
+      if (!authRes.ok) {
+        errBox.textContent = 'เข้าสู่ระบบไม่สำเร็จ: อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+        errBox.style.display = 'block';
+        return;
+      }
+
+      currentSession = { access_token: authData.access_token, user: authData.user };
+
+      // ขั้น 2: ดึง profile (role, ชื่อ, สาขา) ของผู้ใช้คนนี้
+      const profRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/user_profiles?select=*&user_id=eq.${currentSession.user.id}`,
+        {
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${currentSession.access_token}`
+          }
+        }
+      );
+      const profData = await profRes.json();
+
+      if (!profRes.ok || !profData.length) {
+        errBox.textContent = 'ล็อกอินสำเร็จ แต่ยังไม่มีข้อมูล role ผูกไว้ในระบบ (ตาราง user_profiles) — ติดต่อผู้ดูแลระบบ';
+        errBox.style.display = 'block';
+        return;
+      }
+
+      currentProfile = profData[0];
+
+      // เข้าสู่แอปจริง
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').classList.add('active');
+      document.getElementById('roleBadge').textContent = `${currentProfile.full_name} · ${currentProfile.role}`;
+      loadDashboard();
+
+    } catch (e) {
+      errBox.textContent = 'เชื่อมต่อระบบไม่สำเร็จ: ' + e.message;
+      errBox.style.display = 'block';
+    } finally {
+      btn.textContent = 'เข้าสู่ระบบ';
+      btn.disabled = false;
+    }
+  }
+
+  function doLoginDemo() {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').classList.add('active');
+    document.getElementById('roleBadge').textContent = roles[roleIdx] + ' (โหมดทดลอง)';
+  }
+
+  // ===== ดึงรายการจริงจาก Supabase แล้วจัดกลุ่มตามอินวอยซ์ (NO.) =====
+  let txnCache = [];
+  let invoiceGroups = {};
+  const statusLabel = {
+    PENDING_HQ_1: ['รอ HQ ตรวจสอบ','st-hq'],
+    PENDING_BRANCH: ['รอสาขาตรวจสอบ','st-branch'],
+    PENDING_ACCOUNTING: ['รอฝ่ายบัญชี','st-acct'],
+    PENDING_FINANCE: ['รอฝ่ายการเงิน','st-acct'],
+    FINANCE_APPROVED: ['รอฝ่ายบริหารอนุมัติจ่าย','st-mgmt'],
+    PENDING_REVISION: ['ตีกลับแก้ไข','st-branch'],
+    COMPLETED: ['เสร็จสิ้น','st-done']
+  };
+
+  async function loadTransactionList() {
+    const statusBox = document.getElementById('txnListStatus');
+    const container = document.getElementById('txnListContainer');
+    statusBox.style.display = 'block';
+    statusBox.textContent = 'กำลังโหลดข้อมูล...';
+    container.innerHTML = '';
+
+    try {
+      const [txnRes, invRes] = await Promise.all([
+        fetch(`${SUPABASE_URL}/rest/v1/transactions?select=*,invoices(invoice_no,management_status,contracts(contract_no,customer_name))&is_deleted=eq.false&order=created_at.desc&limit=500`,
+          { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }),
+        fetch(`${SUPABASE_URL}/rest/v1/invoices?select=invoice_id,invoice_no,management_status,contracts(contract_no,customer_name)&order=created_at.desc&limit=1000`,
+          { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } })
+      ]);
+      const data = await txnRes.json();
+      const allInvoices = await invRes.json();
+      if (!txnRes.ok) { statusBox.textContent = 'โหลดข้อมูลไม่สำเร็จ: ' + (data.message || txnRes.status); return; }
+
+      txnCache = data;
+      invoiceGroups = {};
+      data.forEach(t => {
+        const invId = t.invoice_id;
+        if (!invoiceGroups[invId]) {
+          invoiceGroups[invId] = {
+            invoice_id: invId,
+            invoice_no: t.invoices?.invoice_no || '-',
+            contract_no: t.invoices?.contracts?.contract_no || '-',
+            customer_name: t.invoices?.contracts?.customer_name || '',
+            management_status: t.invoices?.management_status || 'NOT_READY',
+            items: []
+          };
+        }
+        invoiceGroups[invId].items.push(t);
+      });
+
+      // เติมอินวอยซ์ที่ยังไม่มีรายการค่าใช้จ่ายเลย ให้โชว์เป็นการ์ดเปล่าไว้ก่อน ไม่ให้หายไปเงียบๆ
+      if (invRes.ok) {
+        allInvoices.forEach(i => {
+          if (!invoiceGroups[i.invoice_id]) {
+            invoiceGroups[i.invoice_id] = {
+              invoice_id: i.invoice_id,
+              invoice_no: i.invoice_no || '-',
+              contract_no: i.contracts?.contract_no || '-',
+              customer_name: i.contracts?.customer_name || '',
+              management_status: i.management_status || 'NOT_READY',
+              items: []
+            };
+          }
+        });
+      }
+
+      if (!Object.keys(invoiceGroups).length) { statusBox.textContent = 'ยังไม่มีรายการในระบบ'; return; }
+
+      statusBox.style.display = 'none';
+      renderInvoiceCards();
+    } catch (e) {
+      statusBox.textContent = 'เชื่อมต่อไม่สำเร็จ: ' + e.message;
+    }
+  }
+
+  function deptDone(items, key, doneValues) {
+    return items.every(t => doneValues.includes(t[key]));
+  }
+  function deptBadge(label, done) {
+    return `<span class="dept-badge ${done?'done':'pending'}">${done?'✓':'🔔'} ${label}</span>`;
+  }
+
+  const invoiceSortOrder = [
+    "KSAGRO/TS2026-001A","KSAGRO/TS2026-001B","KSAGRO/TS2026-001C","KSAGRO/TS2026-001D","KSAGRO/TS2026-001E",
+    "KSAGRO/TS2026-002","KSAGRO/TS2026-003","KSAGRO/TS2026-004",
+    "KSAGRO/TS2026-005A","KSAGRO/TS2026-005B","KSAGRO/TS2026-005C","KSAGRO/TS2026-005D","KSAGRO/TS2026-005E",
+    "KSAGRO/TS2026-006","KSAGRO/TS2026-007A","KSAGRO/TS2026-007B","KSAGRO/TS2026-008","KSAGRO/TS2026-009",
+    "KSA/TP2026-04-001","KSAGRO/TS2026-02-001",
+    "IV690306001","IV690406005","IV690422001",
+    "IV690512001","IV690520001","รอวางบิล-2026-06-05","รอวางบิล-2026-06-12"
+  ];
+  function normInvNo(s) {
+    return (s || '').replace(/^KSAGRO\//i, '').replace(/^KSA\//i, '').trim();
+  }
+  function sortedInvoiceGroups() {
+    const order = invoiceSortOrder.map(normInvNo);
+    return Object.values(invoiceGroups).sort((a, b) => {
+      const ai = order.indexOf(normInvNo(a.invoice_no));
+      const bi = order.indexOf(normInvNo(b.invoice_no));
+      const aRank = ai === -1 ? 9999 : ai;
+      const bRank = bi === -1 ? 9999 : bi;
+      if (aRank !== bRank) return aRank - bRank;
+      return (a.invoice_no || '').localeCompare(b.invoice_no || '');
+    });
+  }
+
+  function renderInvoiceCards() {
+    const container = document.getElementById('txnListContainer');
+    container.innerHTML = sortedInvoiceGroups().map(g => {
+      const isEmpty = g.items.length === 0;
+      const hqDone = !isEmpty && deptDone(g.items,'hq_check_status',['CHECKED']);
+      const branchDone = !isEmpty && deptDone(g.items,'branch_check_status',['CHECKED']);
+      const acctDone = !isEmpty && deptDone(g.items,'accounting_check_status',['CHECKED','DATA_RECORDED']);
+      const finDone = !isEmpty && deptDone(g.items,'finance_check_status',['CHECKED','PAYMENT_REQUESTED']);
+      const mgmtDone = !isEmpty && deptDone(g.items,'management_check_status',['APPROVED_PAID']);
+      return `
+      <div class="txn-card" style="cursor:pointer;${isEmpty ? 'opacity:0.7;border-style:dashed;' : ''}" onclick="openInvoiceModal('${g.invoice_id}')">
+        <div class="txn-top">
+          <div>
+            <div class="txn-id">${g.invoice_no}</div>
+            <div class="txn-title">สัญญา ${g.contract_no}${g.customer_name ? ' — '+g.customer_name : ''}</div>
+            <div class="txn-meta">${isEmpty ? '⚪ ยังไม่มีรายการค่าใช้จ่าย — กด "เพิ่มรายการใหม่" เพื่อเริ่มบันทึก' : g.items.length + ' รายการค่าใช้จ่าย'}</div>
+          </div>
+        </div>
+        ${isEmpty ? '' : `
+        <div class="dept-badges">
+          ${deptBadge('สนง.ใหญ่', hqDone)}
+          ${deptBadge('สาขา', branchDone)}
+          ${deptBadge('บัญชี', acctDone)}
+          ${deptBadge('การเงิน', finDone)}
+          ${deptBadge('บริหาร', mgmtDone)}
+        </div>`}
+      </div>`;
+    }).join('');
+  }
+
+  // ===== popup อินวอยซ์ (NO.) — รวมทุกรายการค่าใช้จ่าย =====
+  function openInvoiceModal(invoiceId) {
+    const g = invoiceGroups[invoiceId];
+    if (!g) return;
+    document.getElementById('invoiceModalTitle').textContent = `${g.invoice_no} — สัญญา ${g.contract_no}`;
+    const itemsHtml = g.items.length
+      ? g.items.map(t => {
+          const st = statusLabel[t.status] || [t.status,'st-hq'];
+          return `<div class="line-item-row">
+            <div>
+              <div style="font-weight:600;">${t.category_name||''}${t.vendor_name ? ' — '+t.vendor_name : ''}</div>
+              <div style="color:var(--ink-soft);font-size:12px;">บิล #${t.bill_no||'-'} · ${fmtNum(t.total_amount)} ${t.currency}</div>
+            </div>
+            <div style="text-align:right;">
+              <span class="status-pill ${st[1]}">${st[0]}</span><br>
+              <button class="btn-approve" style="margin-top:6px;padding:5px 10px;font-size:11.5px;" onclick="openDetailFromInvoice('${t.transaction_id}','${invoiceId}')">รายละเอียด</button>
+            </div>
+          </div>`;
+        }).join('')
+      : `<p style="color:var(--ink-soft);font-size:13.5px;">ยังไม่มีรายการค่าใช้จ่ายในอินวอยซ์นี้</p>
+         <button class="btn-approve" style="width:100%;background:var(--gold);" onclick="closeInvoiceModal(); showPage('new'); loadNewTransactionForm().then(()=>{ document.getElementById('newInvoiceSelect').value='${invoiceId}'; });">
+           ＋ เพิ่มรายการค่าใช้จ่ายแรกให้อินวอยซ์นี้
+         </button>`;
+
+    document.getElementById('invoiceModalBody').innerHTML = itemsHtml +
+      `<button class="btn-approve" style="width:100%;margin-top:14px;background:#6b4c93;" onclick="closeInvoiceModal(); openInvoiceDetailPage('${invoiceId}');">
+        📋 ดูรายละเอียดเต็ม / พิมพ์อินวอยซ์นี้
+      </button>`;
+    document.getElementById('invoiceModal').style.display = 'flex';
+  }
+  // ===== หน้าสร้างสัญญา/อินวอยซ์ใหม่ =====
+  function closeInvoiceModal(){ document.getElementById('invoiceModal').style.display='none'; }
+
+  function toggleContractMode() {
+    const mode = document.getElementById('ncMode').value;
+    document.getElementById('ncExistingContractField').style.display = mode === 'existing' ? 'block' : 'none';
+    document.getElementById('ncContractFields').style.display = mode === 'existing' ? 'none' : 'block';
+  }
+
+  async function loadExistingContractOptions() {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/contracts?select=contract_id,contract_no,customer_name&order=contract_no.asc&limit=500`,
+        { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } });
+      const contracts = await res.json();
+      document.getElementById('ncExistingContract').innerHTML =
+        '<option value="">-- เลือกสัญญา --</option>' +
+        contracts.map(c => `<option value="${c.contract_id}">${c.contract_no} — ${c.customer_name||''}</option>`).join('');
+    } catch (e) { console.error(e); }
+  }
+
+  async function saveNewContractInvoice() {
+    const errBox = document.getElementById('ncError');
+    errBox.style.display = 'none';
+    const mode = document.getElementById('ncMode').value;
+    const invoiceNo = document.getElementById('ncInvoiceNo').value.trim();
+
+    if (!invoiceNo) { errBox.textContent = 'กรุณากรอกเลขที่อินวอยซ์'; errBox.style.display = 'block'; return; }
+    if (mode === 'new' && !document.getElementById('ncContractNo').value.trim()) {
+      errBox.textContent = 'กรุณากรอกเลขที่สัญญา'; errBox.style.display = 'block'; return;
+    }
+    if (mode === 'existing' && !document.getElementById('ncExistingContract').value) {
+      errBox.textContent = 'กรุณาเลือกสัญญาเดิม'; errBox.style.display = 'block'; return;
+    }
+
+    const btn = document.getElementById('ncSaveBtn');
+    btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+
+    try {
+      let contractId;
+      if (mode === 'existing') {
+        contractId = document.getElementById('ncExistingContract').value;
+      } else {
+        const cPayload = {
+          contract_no: document.getElementById('ncContractNo').value.trim(),
+          customer_name: document.getElementById('ncCustomerName').value || null,
+          broker: document.getElementById('ncBroker').value || null,
+          market_type: document.getElementById('ncMarketType').value,
+          product_type: document.getElementById('ncProductType').value || null,
+          contract_date: document.getElementById('ncContractDate').value || null,
+          currency: document.getElementById('ncCurrency').value,
+          created_by: currentSession.user.id
+        };
+        const cRes = await fetch(`${SUPABASE_URL}/rest/v1/contracts`, {
+          method: 'POST',
+          headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+          body: JSON.stringify(cPayload)
+        });
+        const cData = await cRes.json();
+        if (!cRes.ok) { errBox.textContent = 'สร้างสัญญาไม่สำเร็จ: ' + (cData.message || cRes.status); errBox.style.display = 'block'; return; }
+        contractId = cData[0].contract_id;
+      }
+
+      const iPayload = {
+        invoice_no: invoiceNo,
+        contract_id: contractId,
+        application_name: document.getElementById('ncApplicationName').value || null,
+        currency: document.getElementById('ncCurrency').value,
+        invoice_value: document.getElementById('ncInvoiceValue').value || null,
+        container_count: document.getElementById('ncContainerCount').value || null,
+        tonnage: document.getElementById('ncTonnage').value || null,
+        packing_kgs: document.getElementById('ncPackingKgs').value || null,
+        price_basis: document.getElementById('ncPriceBasis').value || null,
+        price_per_mt: document.getElementById('ncPricePerMt').value || null,
+        exchange_base_rate: document.getElementById('ncExchangeRate').value || null,
+        forwarder: document.getElementById('ncForwarder').value || null,
+        booking_no: document.getElementById('ncBookingNo').value || null,
+        shipment_date: document.getElementById('ncShipmentDate').value || null,
+        created_by: currentSession.user.id
+      };
+      const iRes = await fetch(`${SUPABASE_URL}/rest/v1/invoices`, {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        body: JSON.stringify(iPayload)
+      });
+      const iData = await iRes.json();
+      if (!iRes.ok) { errBox.textContent = 'สร้างอินวอยซ์ไม่สำเร็จ: ' + (iData.message || iRes.status); errBox.style.display = 'block'; return; }
+
+      alert('สร้างสัญญา/อินวอยซ์สำเร็จ! ต่อไปเพิ่มรายการค่าใช้จ่ายให้อินวอยซ์นี้ได้เลย');
+      showPage('new');
+      await loadNewTransactionForm();
+      document.getElementById('newInvoiceSelect').value = iData[0].invoice_id;
+    } catch (e) {
+      errBox.textContent = 'เชื่อมต่อไม่สำเร็จ: ' + e.message;
+      errBox.style.display = 'block';
+    } finally {
+      btn.disabled = false; btn.textContent = 'บันทึกและไปหน้าเพิ่มรายการค่าใช้จ่าย →';
+    }
+  }
+
+  async function loadContractsPage() {
+    const statusBox = document.getElementById('contractsStatus');
+    const container = document.getElementById('contractsContainer');
+    statusBox.style.display = 'block';
+    statusBox.textContent = 'กำลังโหลดข้อมูลสัญญา...';
+    container.innerHTML = '';
+
+    try {
+      const [cRes, iRes, tRes] = await Promise.all([
+        fetch(`${SUPABASE_URL}/rest/v1/contracts?select=*&order=contract_no.asc&limit=500`,
+          { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }),
+        fetch(`${SUPABASE_URL}/rest/v1/invoices?select=invoice_id,invoice_no,contract_id,invoice_value,currency,exchange_base_rate&limit=1000`,
+          { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }),
+        fetch(`${SUPABASE_URL}/rest/v1/transactions?select=invoice_id,total_amount,currency&is_deleted=eq.false&limit=2000`,
+          { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } })
+      ]);
+      const contracts = await cRes.json();
+      const invoices = await iRes.json();
+      const txns = await tRes.json();
+
+      if (!cRes.ok || !iRes.ok || !tRes.ok) { statusBox.textContent = 'โหลดข้อมูลไม่สำเร็จ'; return; }
+      if (!contracts.length) { statusBox.textContent = 'ยังไม่มีสัญญาในระบบ'; return; }
+      statusBox.style.display = 'none';
+
+      function toTHB(amount, currency, rate) {
+        amount = Number(amount) || 0;
+        if (currency === 'THB') return amount;
+        if (currency === 'USD' && rate) return amount * rate;
+        return null;
+      }
+
+      // สร้าง map: invoice_id -> ต้นทุนรวม THB ของ invoice นั้น (ใช้เรทของ invoice นั้นเอง)
+      const invoiceById = {};
+      invoices.forEach(i => { invoiceById[i.invoice_id] = i; });
+      const costByInvoice = {};
+      let unconvertedCount = 0;
+      txns.forEach(t => {
+        const inv = invoiceById[t.invoice_id];
+        const rate = inv ? Number(inv.exchange_base_rate) || null : null;
+        const v = toTHB(t.total_amount, t.currency, rate);
+        if (v === null) { unconvertedCount++; return; }
+        costByInvoice[t.invoice_id] = (costByInvoice[t.invoice_id] || 0) + v;
+      });
+
+      contractsCache = {};
+
+      container.innerHTML = contracts.map(c => {
+        const cInvoices = invoices.filter(i => i.contract_id === c.contract_id);
+        let salesTHB = 0, costTHB = 0, missingRate = 0;
+        const invoiceRows = cInvoices.map(i => {
+          const s = toTHB(i.invoice_value, i.currency, Number(i.exchange_base_rate) || null);
+          if (s === null) missingRate++; else salesTHB += s;
+          const cost = costByInvoice[i.invoice_id] || 0;
+          costTHB += cost;
+          return { ...i, salesTHB: s, costTHB: cost };
+        });
+        const margin = salesTHB - costTHB;
+        const marginPct = salesTHB ? (margin / salesTHB * 100) : null;
+
+        contractsCache[c.contract_id] = { contract: c, invoiceRows, salesTHB, costTHB, margin, marginPct };
+
+        return `
+        <div class="txn-card" style="margin-bottom:12px;cursor:pointer;" onclick="openContractModal('${c.contract_id}')">
+          <div class="txn-top">
+            <div>
+              <div class="txn-id">${c.contract_no}</div>
+              <div class="txn-title">${c.customer_name || '-'}</div>
+              <div class="txn-meta">${c.market_type || ''} · ${cInvoices.length} อินวอยซ์${missingRate ? ` · ⚠ ${missingRate} อินวอยซ์ไม่มีอัตราแลกเปลี่ยน` : ''}</div>
+            </div>
+            <div style="text-align:right;">
+              <div class="amount" style="font-size:16px;">${fmtNum(margin)}<span class="cur"> THB กำไร/ขาดทุน</span></div>
+              <div class="txn-meta">${marginPct !== null ? marginPct.toFixed(1)+'%' : '-'}</div>
+            </div>
+          </div>
+          <div class="dept-badges" style="margin-top:10px;">
+            <span class="dept-badge done">ยอดขาย ${fmtNum(salesTHB)} THB</span>
+            <span class="dept-badge pending">ต้นทุน ${fmtNum(costTHB)} THB</span>
+          </div>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      statusBox.textContent = 'เชื่อมต่อไม่สำเร็จ: ' + e.message;
+    }
+  }
+
+  let contractsCache = {};
+
+  function openContractModal(contractId) {
+    const c = contractsCache[contractId];
+    if (!c) return;
+    document.getElementById('invoiceModalTitle').textContent = `สัญญา ${c.contract.contract_no} — ${c.contract.customer_name || ''}`;
+    document.getElementById('invoiceModalBody').innerHTML =
+      `<div class="detail-row"><span class="k">ยอดขายรวม (THB)</span><span class="v">${fmtNum(c.salesTHB)}</span></div>
+       <div class="detail-row"><span class="k">ต้นทุนรวม (THB)</span><span class="v">${fmtNum(c.costTHB)}</span></div>
+       <div class="detail-row"><span class="k">กำไร/ขาดทุน (THB)</span><span class="v" style="color:${c.margin>=0?'var(--done)':'var(--reject)'}">${fmtNum(c.margin)}</span></div>
+       <h3 style="margin-top:16px;">อินวอยซ์ในสัญญานี้ (${c.invoiceRows.length})</h3>` +
+      c.invoiceRows.map(i => `
+        <div class="line-item-row" style="cursor:pointer;" onclick="closeInvoiceModal(); openInvoiceDetailPage('${i.invoice_id}');">
+          <div>
+            <div style="font-weight:600;">${i.invoice_no}</div>
+            <div style="color:var(--ink-soft);font-size:12px;">ยอดขาย ${i.salesTHB!==null ? fmtNum(i.salesTHB)+' THB' : 'ไม่มีอัตราแลกเปลี่ยน'} · ต้นทุน ${fmtNum(i.costTHB)} THB</div>
+          </div>
+          <button class="btn-approve" style="padding:5px 10px;font-size:11.5px;">ดูรายละเอียด →</button>
+        </div>`).join('');
+    document.getElementById('invoiceModal').style.display = 'flex';
+  }
+
+  // ===== หน้ารายละเอียดอินวอยซ์เต็มรูปแบบ (พิมพ์ได้) =====
+  let invoiceDetailState = null;
+  let invoicePriceEditMode = false;
+
+  async function openInvoiceDetailPage(invoiceId) {
+    const container = document.getElementById('invoiceDetailPageBody');
+    container.innerHTML = '<div class="panel">กำลังโหลดข้อมูล...</div>';
+    showPage('invoice');
+    invoicePriceEditMode = false;
+
+    try {
+      const [invRes, txnRes] = await Promise.all([
+        fetch(`${SUPABASE_URL}/rest/v1/invoices?invoice_id=eq.${invoiceId}&select=*,contracts(*)`,
+          { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }),
+        fetch(`${SUPABASE_URL}/rest/v1/transactions?invoice_id=eq.${invoiceId}&is_deleted=eq.false&select=*`,
+          { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } })
+      ]);
+      const arr = await invRes.json();
+      const items = await txnRes.json();
+      if (!invRes.ok || !arr.length) { container.innerHTML = '<div class="panel">โหลดข้อมูลไม่สำเร็จ</div>'; return; }
+      invoiceDetailState = { inv: arr[0], contract: arr[0].contracts || {}, items: txnRes.ok ? items : [], invoiceId };
+      renderInvoiceDetailPage();
+    } catch (e) {
+      container.innerHTML = `<div class="panel">เชื่อมต่อไม่สำเร็จ: ${e.message}</div>`;
+    }
+  }
+
+  function toggleInvoicePriceEdit() {
+    invoicePriceEditMode = !invoicePriceEditMode;
+    renderInvoiceDetailPage();
+  }
+
+  const invoiceEditableFields = [
+    ['payment_type','เงื่อนไขการชำระเงิน','select',['','T/T','L/C']],
+    ['tt_terms','รายละเอียด T/T (เช่น T/T 30% & T/T 70%)','text'],
+    ['lc_no','L/C NO.','text'],
+    ['latest_shipment_date','LATEST SHIP DATE','date'],
+    ['expiry_date','EXPIRY DATE (L/C)','date'],
+    ['fob_price','ราคา FOB (อ้างอิง)','number'],
+    ['cfr_price','ราคา CFR (อ้างอิง)','number'],
+    ['cif_price','ราคา CIF (อ้างอิง)','number'],
+    ['freight_cost','FREIGHT COST','number'],
+    ['port_of_discharge','PORT OF DISCHARGE','text'],
+    ['forwarder','FORWARDER','text'],
+    ['booking_no','BOOKING NO.','text'],
+    ['starch_mill','โรงแป้ง','text'],
+    ['loading_yard','ลานโหลด','text'],
+    ['loading_date','LOADING DATE','date'],
+    ['closing_date','CLOSING DATE','date'],
+    ['etd_date','ETD','date'],
+    ['eta_date','ETA','date'],
+    ['bl_no','BL NO.','text'],
+    ['customs_declaration_no','ใบขน NO.','text'],
+    ['dhl_no','DHL NO.','text'],
+  ];
+
+  async function saveInvoicePrices() {
+    const patch = {};
+    invoiceEditableFields.forEach(([key]) => {
+      const el = document.getElementById('edit_' + key);
+      patch[key] = el.value || null;
+    });
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/invoices?invoice_id=eq.${invoiceDetailState.invoiceId}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}`,
+          'Content-Type': 'application/json', 'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(patch)
+      });
+      const data = await res.json();
+      if (!res.ok) { alert('บันทึกไม่สำเร็จ: ' + (data.message || res.status)); return; }
+      invoiceDetailState.inv = { ...invoiceDetailState.inv, ...data[0] };
+      invoicePriceEditMode = false;
+      renderInvoiceDetailPage();
+    } catch (e) {
+      alert('เชื่อมต่อไม่สำเร็จ: ' + e.message);
+    }
+  }
+
+  function renderInvoiceDetailPage() {
+    const container = document.getElementById('invoiceDetailPageBody');
+    const { inv, contract, items } = invoiceDetailState;
+
+      // ---- คำนวณต้นทุนเทียบยอดขาย เป็น THB โดยใช้อัตราแลกเปลี่ยนของอินวอยซ์นี้เอง ----
+      const rate = Number(inv.exchange_base_rate) || null;
+      function toTHB(amount, currency) {
+        amount = Number(amount) || 0;
+        if (currency === 'THB') return amount;
+        if (currency === 'USD' && rate) return amount * rate;
+        return null; // ไม่มีอัตราแปลง (เช่น CNY ที่ไม่มีเรทบันทึกไว้) แสดงแยกต่างหาก
+      }
+      const salesTHB = toTHB(inv.invoice_value, inv.currency);
+      let costTHB = 0, costUnconverted = [];
+      items.forEach(t => {
+        const v = toTHB(t.total_amount, t.currency);
+        if (v === null) costUnconverted.push(t);
+        else costTHB += v;
+      });
+      const marginTHB = (salesTHB !== null) ? salesTHB - costTHB : null;
+      const marginPct = (salesTHB) ? (marginTHB / salesTHB * 100) : null;
+
+      const field = (label, value) => value ? `<div class="detail-row"><span class="k">${label}</span><span class="v">${value}</span></div>` : '';
+
+      const priceEditRow = invoicePriceEditMode
+        ? invoiceEditableFields.map(([key,label,type,options]) => {
+            if (type === 'select') {
+              const opts = options.map(o => `<option value="${o}" ${inv[key]===o?'selected':''}>${o||'-- เลือก --'}</option>`).join('');
+              return `<div class="detail-row"><span class="k">${label}</span><select id="edit_${key}" style="padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:13px;">${opts}</select></div>`;
+            }
+            return `<div class="detail-row"><span class="k">${label}</span><input id="edit_${key}" type="${type}" ${type==='number'?'step="0.01"':''} value="${inv[key] ?? ''}"></div>`;
+          }).join('') + `<button class="btn-approve" style="width:100%;margin-top:8px;" onclick="saveInvoicePrices()">💾 บันทึกการแก้ไข</button>`
+        : invoiceEditableFields.map(([key,label,type]) =>
+            field(label, inv[key] ? (type==='number' ? fmtNum(inv[key]) : inv[key]) : '')
+          ).join('') + `<button class="btn-approve" style="width:100%;margin-top:8px;background:var(--gold);" onclick="toggleInvoicePriceEdit()">✎ แก้ไขข้อมูลอินวอยซ์</button>`;
+
+      container.innerHTML = `
+        <div class="panel" style="margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:14px;">
+            <div>
+              <div class="txn-id">${inv.invoice_no}</div>
+              <div style="font-size:17px;font-weight:700;margin:4px 0 2px;">สัญญา ${contract.contract_no || '-'}</div>
+              <div class="txn-meta">ลูกค้า: ${contract.customer_name || '-'}</div>
+            </div>
+            <div style="text-align:right;">
+              <div class="amount" style="font-size:19px;">${fmtNum(inv.invoice_value)}<span class="cur"> ${inv.currency || ''}</span></div>
+              <div class="txn-meta">มูลค่าอินวอยซ์</div>
+              <button class="btn-approve" style="margin-top:8px;background:var(--gold);" onclick="window.print()">🖨 พิมพ์หน้านี้</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <h3>ข้อมูลสัญญา/อินวอยซ์</h3>
+            ${field('นายหน้า (Broker)', contract.broker)}
+            ${field('APPLICATION NAME', inv.application_name)}
+            ${field('COMM', fmtNum(inv.commission))}
+            ${field('TOTAL COMM', fmtNum(inv.total_commission))}
+            ${field('EXCHANGE BASE RATE', inv.exchange_base_rate ? fmtNum(inv.exchange_base_rate) + ' บาท/USD' : '')}
+            ${field('จำนวนตู้', inv.container_count)}
+            ${field('จำนวนตัน', inv.tonnage)}
+            ${field('แพ็คกิ้ง (กก.)', inv.packing_kgs)}
+            ${field('ราคาที่ใช้ขายจริง', inv.price_basis ? `${inv.price_basis} ${fmtNum(inv.price_per_mt)}/MT` : '')}
+            ${field('การคำนวณยอดขาย (อัตโนมัติ)', (inv.price_per_mt && inv.tonnage) ? `${inv.price_basis||''} ${fmtNum(inv.price_per_mt)} x ${fmtNum(inv.tonnage)} ตัน = ${fmtNum(inv.price_per_mt*inv.tonnage)} ${inv.currency||''}` : '')}
+            ${field('PO# โรงแป้ง (ทุก PO ในอินวอยซ์นี้ — แก้ไขที่ตัวรายการ)', items.filter(t=>(t.category_name||'').includes('โรงแป้ง') && t.po_no).map(t=>t.po_no).join(', '))}
+            ${priceEditRow}
+          </div>
+
+          <div class="panel">
+            <h3>เปรียบเทียบต้นทุน-ยอดขาย (แปลงเป็น THB)</h3>
+            <div class="detail-row"><span class="k">ยอดขาย (THB)</span><span class="v">${salesTHB !== null ? fmtNum(salesTHB) : 'ไม่มีอัตราแลกเปลี่ยน'}</span></div>
+            <div class="detail-row"><span class="k">ต้นทุนรวม (THB)</span><span class="v">${fmtNum(costTHB)}</span></div>
+            <div class="detail-row"><span class="k">กำไร/ขาดทุน (THB)</span><span class="v" style="color:${marginTHB>=0?'var(--done)':'var(--reject)'}">${marginTHB !== null ? fmtNum(marginTHB) : '-'}</span></div>
+            <div class="detail-row"><span class="k">อัตรากำไร</span><span class="v">${marginPct !== null ? marginPct.toFixed(1)+'%' : '-'}</span></div>
+            ${costUnconverted.length ? `<p style="font-size:12px;color:var(--reject);margin-top:8px;">⚠ มี ${costUnconverted.length} รายการที่ไม่มีอัตราแลกเปลี่ยนให้แปลง (${costUnconverted.map(t=>t.currency).join(', ')}) ไม่ได้รวมในต้นทุนข้างต้น</p>` : ''}
+
+            <h3 style="margin-top:22px;">รายการค่าใช้จ่ายทั้งหมด (${items.length} รายการ)</h3>
+            ${items.map(t => `<div class="line-item-row">
+              <div>
+                <div style="font-weight:600;">${t.category_name||''}${t.vendor_name?' — '+t.vendor_name:''}</div>
+                <div style="color:var(--ink-soft);font-size:12px;">บิล #${t.bill_no||'-'}</div>
+              </div>
+              <div style="text-align:right;">${fmtNum(t.total_amount)} ${t.currency}</div>
+            </div>`).join('')}
+          </div>
+        </div>`;
+  }
+
+  let cameFromInvoiceId = null;
+  function openDetailFromInvoice(txnId, invoiceId) {
+    cameFromInvoiceId = invoiceId;
+    closeInvoiceModal();
+    openDetail(txnId);
+    document.getElementById('backToInvoiceBtn').style.display = 'inline-block';
+  }
+  function backToInvoice() {
+    closeDetail();
+    if (cameFromInvoiceId) openInvoiceModal(cameFromInvoiceId);
+  }
+
+  // ===== Modal รายละเอียด =====
+  let activeTxn = null;
+  let editMode = false;
+
+  const editableFields = [
+    ['category_name','ประเภทค่าใช้จ่าย'], ['vendor_name','บริษัท/หน่วยงาน'], ['bill_no','เลขที่ใบวางบิล'], ['bill_date','วันที่ใบกำกับ/วางบิล'],
+    ['bill_received_date','รับวางบิลวันที่'], ['amount_before_vat','ยอดก่อน VAT'], ['vat_amount','VAT'],
+    ['total_amount','ยอดรวม'], ['currency','สกุลเงิน'], ['note','หมายเหตุ']
+  ];
+  const numericFields = ['amount_before_vat','vat_amount','total_amount','quantity','unit_price','estimated_amount'];
+  function fmtNum(v) {
+    if (v === null || v === undefined || v === '') return '-';
+    const n = Number(v);
+    if (isNaN(n)) return v;
+    return n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  function openDetail(id) {
+    activeTxn = txnCache.find(t => t.transaction_id === id);
+    if (!activeTxn) return;
+    editMode = false;
+    document.getElementById('modalTitle').textContent = activeTxn.invoices?.invoice_no
+      ? `รายละเอียด — ${activeTxn.invoices.invoice_no}` : 'รายละเอียดรายการ';
+    renderModalBody();
+    document.getElementById('editSaveBtn').textContent = '✎ แก้ไข';
+    document.getElementById('detailModal').style.display = 'flex';
+  }
+
+  function closeDetail() {
+    document.getElementById('detailModal').style.display = 'none';
+    document.getElementById('backToInvoiceBtn').style.display = 'none';
+    activeTxn = null; editMode = false;
+  }
+
+  const deptOptions = {
+    hq: [['PENDING','รอตรวจ'],['CHECKED','ตรวจแล้ว'],['REJECTED','รีเจค/แก้ไข']],
+    branch: [['PENDING','รอตรวจ'],['CHECKED','ตรวจแล้ว'],['REJECTED','รีเจค/แก้ไข']],
+    accounting: [['PENDING','รอตรวจ'],['CHECKED','ตรวจแล้ว'],['REJECTED','รีเจค/แก้ไข'],['DATA_RECORDED','บันทึกข้อมูลแล้ว']],
+    finance: [['PENDING','รอตั้งเบิก'],['CHECKED','ตรวจแล้ว'],['REJECTED','รีเจค/แก้ไข'],['PAYMENT_REQUESTED','ตั้งเบิกรอจ่าย']],
+    management: [['PENDING','รอดำเนินการ'],['APPROVED_PAID','อนุมัติ/จ่ายแล้ว']]
+  };
+  const deptLabel = { hq:'สนง.ใหญ่ ตรวจสอบ', branch:'สาขา ตรวจสอบ', accounting:'บัญชี ตรวจ & คีย์ข้อมูล', finance:'การเงิน ตรวจสอบ & ตั้งเบิกจ่าย', management:'ฝ่ายบริหาร อนุมัติ/จ่าย (รายบิลนี้)' };
+
+  function renderDeptRow(dept, enabled) {
+    const key = dept + '_check_status';
+    const current = activeTxn[key] || 'PENDING';
+    const opts = deptOptions[dept].map(([v,l]) => `<option value="${v}" ${v===current?'selected':''}>${l}</option>`).join('');
+    return `<div class="detail-row">
+      <span class="k">${deptLabel[dept]}</span>
+      <select data-dept="${dept}" ${enabled ? '' : 'disabled'} style="padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:13px;">${opts}</select>
+    </div>`;
+  }
+
+  function renderDeptSection() {
+    const hqDone = activeTxn.hq_check_status === 'CHECKED';
+    const branchDone = activeTxn.branch_check_status === 'CHECKED';
+    const acctDone = ['CHECKED','DATA_RECORDED'].includes(activeTxn.accounting_check_status);
+    const financeDone = ['CHECKED','PAYMENT_REQUESTED'].includes(activeTxn.finance_check_status);
+    return `
+      <div style="margin-top:16px;padding-top:12px;border-top:2px solid var(--line);">
+        <div style="font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:8px;">สถานะตรวจสอบตามหน่วยงาน (ล็อกลำดับ — อนุมัติจ่ายแยกต่อบิลนี้ ไม่ต้องรอบิลอื่นในอินวอยซ์เดียวกัน)</div>
+        ${renderDeptRow('hq', true)}
+        ${renderDeptRow('branch', hqDone)}
+        ${renderDeptRow('accounting', branchDone)}
+        ${renderDeptRow('finance', acctDone)}
+        ${renderDeptRow('management', financeDone)}
+        <button class="btn-approve" style="width:100%;margin-top:10px;" onclick="saveDeptStatus()">💾 บันทึกสถานะตรวจสอบ</button>
+      </div>`;
+  }
+
+  async function saveDeptStatus() {
+    const selects = document.querySelectorAll('#modalBody select[data-dept]');
+    const patch = {};
+    selects.forEach(s => {
+      if (!s.disabled) patch[s.dataset.dept + '_check_status'] = s.value;
+    });
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/transactions?transaction_id=eq.${activeTxn.transaction_id}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}`,
+          'Content-Type': 'application/json', 'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(patch)
+      });
+      const data = await res.json();
+      if (!res.ok) { alert('บันทึกไม่สำเร็จ: ' + (data.message || res.status)); return; }
+      Object.assign(activeTxn, data[0]);
+      renderModalBody();
+      await loadTransactionList();
+      if (cameFromInvoiceId) openInvoiceModal(cameFromInvoiceId);
+    } catch (e) {
+      alert('เชื่อมต่อไม่สำเร็จ: ' + e.message);
+    }
+  }
+
+  function renderRevisionBanner() {
+    if (activeTxn.status !== 'PENDING_REVISION') return '';
+    return `
+      <div class="ai-status" style="background:#F7E2E2;color:#B33A3A;margin-bottom:14px;flex-direction:column;align-items:flex-start;gap:4px;">
+        <div style="font-weight:700;">⚠ รายการนี้ถูกตีกลับให้แก้ไข</div>
+        <div style="font-size:12.5px;">เหตุผล: ${activeTxn.note || '(ไม่ได้ระบุเหตุผล — กด "✎ แก้ไข" เพื่อเพิ่มหมายเหตุ)'}</div>
+      </div>
+      <button class="btn-approve" style="width:100%;margin-bottom:14px;background:#B33A3A;" onclick="resubmitTransaction()">
+        🔄 แก้ไขข้อมูลเสร็จแล้ว — ส่งกลับตรวจใหม่จาก HQ
+      </button>`;
+  }
+
+  async function resubmitTransaction() {
+    if (!confirm('ยืนยันส่งรายการนี้กลับไปตรวจสอบใหม่ตั้งแต่ HQ ทั้ง 4 ขั้นใช่หรือไม่?\n(สถานะทุกหน่วยงานจะถูกรีเซ็ตกลับเป็น "รอตรวจ")')) return;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/transactions?transaction_id=eq.${activeTxn.transaction_id}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}`,
+          'Content-Type': 'application/json', 'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          hq_check_status: 'PENDING', branch_check_status: 'PENDING',
+          accounting_check_status: 'PENDING', finance_check_status: 'PENDING',
+          management_check_status: 'PENDING'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) { alert('ส่งกลับไม่สำเร็จ: ' + (data.message || res.status)); return; }
+      Object.assign(activeTxn, data[0]);
+      renderModalBody();
+      await loadTransactionList();
+      if (cameFromInvoiceId) openInvoiceModal(cameFromInvoiceId);
+    } catch (e) {
+      alert('เชื่อมต่อไม่สำเร็จ: ' + e.message);
+    }
+  }
+
+  function renderModalBody() {
+    const body = document.getElementById('modalBody');
+    body.innerHTML = renderRevisionBanner() + editableFields.map(([key,label]) => {
+      const val = activeTxn[key] ?? '';
+      if (editMode) {
+        return `<div class="detail-row"><span class="k">${label}</span>
+          <input data-key="${key}" value="${val}"></div>`;
+      }
+      const display = numericFields.includes(key) ? fmtNum(val) : (val || '-');
+      return `<div class="detail-row"><span class="k">${label}</span><span class="v">${display}</span></div>`;
+    }).join('') + renderDeptSection() + renderAttachmentSection();
+    loadAttachments();
+  }
+
+  // ===== ไฟล์แนบ =====
+  const STORAGE_BUCKET = 'bill-attachments';
+  let attachmentCache = [];
+
+  function sanitizeFilename(name) {
+    const dotIdx = name.lastIndexOf('.');
+    const ext = dotIdx > -1 ? name.slice(dotIdx) : '';
+    const base = (dotIdx > -1 ? name.slice(0, dotIdx) : name)
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 60);
+    return (base || 'file') + ext.replace(/[^a-zA-Z0-9.]/g, '');
+  }
+
+  function renderAttachmentSection() {
+    return `
+      <div style="margin-top:16px;padding-top:12px;border-top:2px solid var(--line);">
+        <div style="font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:8px;">ไฟล์แนบ (ใบวางบิล/เอกสาร)</div>
+        <div id="attachmentList" style="font-size:12.5px;color:var(--ink-soft);">กำลังโหลด...</div>
+        <input type="file" id="fileUploadInput" style="display:none;" onchange="uploadAttachment(this.files[0])">
+        <button class="btn-approve" style="width:100%;margin-top:10px;background:var(--gold);" onclick="document.getElementById('fileUploadInput').click()">📎 อัปโหลดไฟล์ใหม่</button>
+      </div>`;
+  }
+
+  async function loadAttachments() {
+    const listBox = document.getElementById('attachmentList');
+    if (!listBox || !activeTxn) return;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/attachments?select=*&transaction_id=eq.${activeTxn.transaction_id}`, {
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` }
+      });
+      const data = await res.json();
+      attachmentCache = data;
+      if (!data.length) { listBox.innerHTML = 'ยังไม่มีไฟล์แนบ'; return; }
+      listBox.innerHTML = data.map(a => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #F0EDE3;">
+          <span>📄 ${a.original_filename || a.file_url.split('/').pop()}</span>
+          <span>
+            <button onclick="downloadAttachment('${a.attachment_id}')" style="border:none;background:none;color:var(--primary);cursor:pointer;font-weight:600;font-size:12px;">ดาวน์โหลด</button>
+            &nbsp;
+            <button onclick="deleteAttachment('${a.attachment_id}')" style="border:none;background:none;color:var(--reject);cursor:pointer;font-weight:600;font-size:12px;">ลบ</button>
+          </span>
+        </div>`).join('');
+    } catch (e) {
+      listBox.textContent = 'โหลดไฟล์แนบไม่สำเร็จ: ' + e.message;
+    }
+  }
+
+  async function uploadAttachment(file) {
+    if (!file || !activeTxn) return;
+    const path = `${activeTxn.transaction_id}/${Date.now()}_${sanitizeFilename(file.name)}`;
+    try {
+      const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${path}`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${currentSession.access_token}`,
+          'Content-Type': file.type || 'application/octet-stream'
+        },
+        body: file
+      });
+      if (!uploadRes.ok) { const d = await uploadRes.json(); alert('อัปโหลดไม่สำเร็จ: ' + (d.message || uploadRes.status)); return; }
+
+      const fileType = file.type.includes('pdf') ? 'pdf' : 'image';
+      const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/attachments`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}`,
+          'Content-Type': 'application/json', 'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({ transaction_id: activeTxn.transaction_id, file_url: path, file_type: fileType, original_filename: file.name })
+      });
+      if (!insertRes.ok) { const d = await insertRes.json(); alert('บันทึกข้อมูลไฟล์ไม่สำเร็จ: ' + (d.message||insertRes.status)); return; }
+      loadAttachments();
+    } catch (e) {
+      alert('อัปโหลดไม่สำเร็จ: ' + e.message);
+    }
+  }
+
+  async function downloadAttachment(attachmentId) {
+    const a = attachmentCache.find(x => x.attachment_id === attachmentId);
+    if (!a) return;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/${STORAGE_BUCKET}/${a.file_url}`, {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expiresIn: 60 })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.signedURL) { alert('สร้างลิงก์ดาวน์โหลดไม่สำเร็จ'); return; }
+      const a = document.createElement('a');
+      a.href = `${SUPABASE_URL}/storage/v1${data.signedURL}`;
+      a.download = attachmentCache.find(x => x.attachment_id === attachmentId)?.original_filename || '';
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e) {
+      alert('ดาวน์โหลดไม่สำเร็จ: ' + e.message);
+    }
+  }
+
+  async function deleteAttachment(attachmentId) {
+    const a = attachmentCache.find(x => x.attachment_id === attachmentId);
+    if (!a) return;
+    if (!confirm('ยืนยันลบไฟล์แนบนี้ใช่หรือไม่?')) return;
+    try {
+      await fetch(`${SUPABASE_URL}/storage/v1/object/remove/${STORAGE_BUCKET}`, {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prefixes: [a.file_url] })
+      });
+      await fetch(`${SUPABASE_URL}/rest/v1/attachments?attachment_id=eq.${attachmentId}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` }
+      });
+      loadAttachments();
+    } catch (e) {
+      alert('ลบไม่สำเร็จ: ' + e.message);
+    }
+  }
+
+  function toggleOrSaveEdit() {
+    if (!editMode) {
+      editMode = true;
+      renderModalBody();
+      document.getElementById('editSaveBtn').textContent = '💾 บันทึก';
+    } else {
+      saveEdit();
+    }
+  }
+
+  async function saveEdit() {
+    const inputs = document.querySelectorAll('#modalBody input[data-key]');
+    const patch = {};
+    inputs.forEach(inp => { patch[inp.dataset.key] = inp.value; });
+
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/transactions?transaction_id=eq.${activeTxn.transaction_id}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${currentSession.access_token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(patch)
+      });
+      const data = await res.json();
+      if (!res.ok) { alert('บันทึกไม่สำเร็จ: ' + (data.message || res.status)); return; }
+
+      Object.assign(activeTxn, patch);
+      editMode = false;
+      renderModalBody();
+      document.getElementById('editSaveBtn').textContent = '✎ แก้ไข';
+      loadTransactionList();
+    } catch (e) {
+      alert('เชื่อมต่อไม่สำเร็จ: ' + e.message);
+    }
+  }
+
+  function confirmDelete() {
+    if (!activeTxn) return;
+    if (!confirm(`ยืนยันลบรายการ "${activeTxn.category_name}" ใช่หรือไม่?\n(การลบนี้จะซ่อนรายการออกจากระบบ ไม่ได้ลบถาวร)`)) return;
+    deleteTxn();
+  }
+
+  async function deleteTxn() {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/transactions?transaction_id=eq.${activeTxn.transaction_id}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${currentSession.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ is_deleted: true })
+      });
+      if (!res.ok) { const d = await res.json(); alert('ลบไม่สำเร็จ: ' + (d.message || res.status)); return; }
+      closeDetail();
+      loadTransactionList();
+    } catch (e) {
+      alert('เชื่อมต่อไม่สำเร็จ: ' + e.message);
+    }
+  }
+
+  // ===== Export =====
+  function exportOneExcel() {
+    if (!activeTxn) return;
+    const rows = editableFields.map(([key,label]) => ({ รายการ: label, ค่า: activeTxn[key] ?? '' }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'รายการ');
+    XLSX.writeFile(wb, `${activeTxn.bill_no || activeTxn.transaction_id}.xlsx`);
+  }
+
+  function exportOnePDF() {
+    if (!activeTxn) return;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    doc.text('KS AGRO - Billing Detail', 14, 18);
+    doc.setFontSize(10);
+    let y = 30;
+    editableFields.forEach(([key,label]) => {
+      doc.text(`${label}: ${activeTxn[key] ?? '-'}`, 14, y);
+      y += 8;
+    });
+    doc.save(`${activeTxn.bill_no || activeTxn.transaction_id}.pdf`);
+  }
+
+  const titles = {dashboard:'แดชบอร์ด', list:'รายการตรวจสอบ', new:'เพิ่มรายการใหม่', newcontract:'สร้างสัญญา/อินวอยซ์ใหม่', contracts:'สัญญา', invoice:'รายละเอียดอินวอยซ์'};
+  function showPage(name){
+    Object.keys(titles).forEach(k=>{
+      document.getElementById('page-'+k).style.display = (k===name)?'block':'none';
+    });
+    document.getElementById('pageTitle').textContent = titles[name];
+    document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active', b.dataset.page===name));
+    document.querySelectorAll('.bottom-nav button').forEach(b=>b.classList.toggle('active', b.dataset.page===name));
+    if (name === 'list' && currentSession) loadTransactionList();
+    if (name === 'new' && currentSession) loadNewTransactionForm();
+    if (name === 'dashboard' && currentSession) loadDashboard();
+    if (name === 'contracts' && currentSession) loadContractsPage();
+    if (name === 'newcontract' && currentSession) loadExistingContractOptions();
+  }
+
+  // ===== หน้าเพิ่มรายการใหม่ =====
+  async function loadNewTransactionForm() {
+    try {
+      const [invRes, brRes] = await Promise.all([
+        fetch(`${SUPABASE_URL}/rest/v1/invoices?select=invoice_id,invoice_no,contracts(contract_no)&order=invoice_no.asc&limit=500`,
+          { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }),
+        fetch(`${SUPABASE_URL}/rest/v1/branches?select=branch_id,branch_name&order=branch_name.asc`,
+          { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } })
+      ]);
+      const invoices = await invRes.json();
+      const branches = await brRes.json();
+
+      const invSelect = document.getElementById('newInvoiceSelect');
+      invSelect.innerHTML = '<option value="">-- เลือกอินวอยซ์ --</option>' +
+        invoices.map(i => `<option value="${i.invoice_id}">${i.invoice_no}${i.contracts?.contract_no ? ' — สัญญา '+i.contracts.contract_no : ''}</option>`).join('');
+
+      const brSelect = document.getElementById('newBranchSelect');
+      brSelect.innerHTML = branches.map(b => `<option value="${b.branch_id}">${b.branch_name}</option>`).join('');
+    } catch (e) {
+      console.error('load form options failed', e);
+    }
+  }
+
+  async function saveNewTransaction() {
+    const errBox = document.getElementById('newTxnError');
+    errBox.style.display = 'none';
+
+    const invoiceId = document.getElementById('newInvoiceSelect').value;
+    const branchId = document.getElementById('newBranchSelect').value;
+    const category = document.getElementById('newCategory').value.trim();
+    const totalAmount = document.getElementById('newTotal').value;
+
+    if (!invoiceId || !branchId || !category || !totalAmount) {
+      errBox.textContent = 'กรุณากรอกอย่างน้อย: อินวอยซ์, สาขา, ประเภทค่าใช้จ่าย, ยอดรวม';
+      errBox.style.display = 'block';
+      return;
+    }
+
+    const btn = document.getElementById('newTxnSaveBtn');
+    btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+
+    const payload = {
+      invoice_id: invoiceId,
+      branch_id: branchId,
+      category_name: category,
+      vendor_name: document.getElementById('newVendor').value || null,
+      bill_no: document.getElementById('newBillNo').value || null,
+      bill_date: document.getElementById('newBillDate').value || null,
+      bill_received_date: document.getElementById('newBillReceivedDate').value || new Date().toISOString().slice(0,10),
+      currency: document.getElementById('newCurrency').value,
+      amount_before_vat: document.getElementById('newAmountBeforeVat').value || null,
+      vat_amount: document.getElementById('newVat').value || null,
+      total_amount: totalAmount,
+      credit_days: document.getElementById('newCreditDays').value || null,
+      payment_due_date: document.getElementById('newPaymentDue').value || null,
+      note: document.getElementById('newNote').value || null,
+      created_by: currentSession.user.id
+    };
+
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/transactions`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}`,
+          'Content-Type': 'application/json', 'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) { errBox.textContent = 'บันทึกไม่สำเร็จ: ' + (data.message || res.status); errBox.style.display = 'block'; return; }
+
+      const newTxn = data[0];
+
+      // ถ้ามีไฟล์แนบ อัปโหลดต่อทันที
+      const file = document.getElementById('newFileInput').files[0];
+      if (file) {
+        const path = `${newTxn.transaction_id}/${Date.now()}_${sanitizeFilename(file.name)}`;
+        await fetch(`${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${path}`, {
+          method: 'POST',
+          headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}`, 'Content-Type': file.type || 'application/octet-stream' },
+          body: file
+        });
+        await fetch(`${SUPABASE_URL}/rest/v1/attachments`, {
+          method: 'POST',
+          headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transaction_id: newTxn.transaction_id, file_url: path, file_type: file.type.includes('pdf') ? 'pdf' : 'image', original_filename: file.name })
+        });
+      }
+
+      alert('บันทึกรายการสำเร็จ! ส่งให้สำนักงานใหญ่ตรวจสอบแล้ว');
+      // เคลียร์ฟอร์ม
+      ['newCategory','newVendor','newBillNo','newBillDate','newBillReceivedDate','newAmountBeforeVat','newVat','newTotal','newCreditDays','newPaymentDue','newNote'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('newFileInput').value = '';
+      showPage('list');
+    } catch (e) {
+      errBox.textContent = 'เชื่อมต่อไม่สำเร็จ: ' + e.message;
+      errBox.style.display = 'block';
+    } finally {
+      btn.disabled = false; btn.textContent = 'บันทึกรายการ → ส่งให้สำนักงานใหญ่ตรวจสอบ';
+    }
+  }
+  document.querySelectorAll('.nav-item, .bottom-nav button').forEach(b=>{
+    b.addEventListener('click', ()=>showPage(b.dataset.page));
+  });
+
+  function simulateOCR(){
+    document.getElementById('aiStatus').style.display='flex';
+    document.getElementById('formFields').style.display='none';
+    setTimeout(()=>{
+      document.getElementById('aiStatus').style.display='none';
+      document.getElementById('formFields').style.display='grid';
+    }, 1400);
+  }
+
+  // ---- Dashboard (ข้อมูลจริง) ----
+  const inkSoft = '#5B6669';
+  Chart.defaults.font.family = "Sarabun";
+  Chart.defaults.color = inkSoft;
+  let chartInstances = {};
+
+  function destroyChart(id) {
+    if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+  }
+
+  async function loadDashboard() {
+    const statusBox = document.getElementById('dashboardStatus');
+    statusBox.style.display = 'block';
+    statusBox.textContent = 'กำลังโหลดข้อมูลแดชบอร์ด...';
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/transactions?select=category_name,currency,total_amount,status,created_at,branches(branch_name)&is_deleted=eq.false&limit=2000`,
+        { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }
+      );
+      const data = await res.json();
+      if (!res.ok) { statusBox.textContent = 'โหลดข้อมูลแดชบอร์ดไม่สำเร็จ: ' + (data.message || res.status); return; }
+      statusBox.style.display = 'none';
+      renderDashboard(data);
+    } catch (e) {
+      statusBox.textContent = 'เชื่อมต่อไม่สำเร็จ: ' + e.message;
+    }
+  }
+
+  function renderDashboard(rows) {
+    const now = new Date();
+    const thisMonth = now.getMonth(), thisYear = now.getFullYear();
+
+    // ---- KPI ----
+    const pending = rows.filter(r => r.status !== 'COMPLETED').length;
+    const completed = rows.filter(r => r.status === 'COMPLETED').length;
+    const sumByCurrencyThisMonth = {};
+    rows.forEach(r => {
+      const d = new Date(r.created_at);
+      if (d.getMonth() === thisMonth && d.getFullYear() === thisYear) {
+        sumByCurrencyThisMonth[r.currency] = (sumByCurrencyThisMonth[r.currency] || 0) + Number(r.total_amount || 0);
+      }
+    });
+    document.getElementById('kpiPending').textContent = pending.toLocaleString('en-US');
+    document.getElementById('kpiCompleted').textContent = completed.toLocaleString('en-US');
+    document.getElementById('kpiThbMonth').textContent = (sumByCurrencyThisMonth['THB'] || 0).toLocaleString('en-US', {maximumFractionDigits:0});
+    document.getElementById('kpiUsdMonth').textContent = '$' + (sumByCurrencyThisMonth['USD'] || 0).toLocaleString('en-US', {maximumFractionDigits:0});
+
+    // ---- แนวโน้มรายเดือน (THB) 6 เดือนล่าสุด ----
+    const monthLabels = []; const monthKeys = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(thisYear, thisMonth - i, 1);
+      monthKeys.push(`${d.getFullYear()}-${d.getMonth()}`);
+      monthLabels.push(d.toLocaleDateString('th-TH', {month:'short', year:'2-digit'}));
+    }
+    const monthlyThb = monthKeys.map(() => 0);
+    rows.forEach(r => {
+      if (r.currency !== 'THB') return;
+      const d = new Date(r.created_at);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      const idx = monthKeys.indexOf(key);
+      if (idx > -1) monthlyThb[idx] += Number(r.total_amount || 0);
+    });
+
+    // ---- สัดส่วนตามประเภท (นับจำนวนบิล ไม่รวมยอดเงินข้ามสกุล) ----
+    const categoryCounts = {};
+    rows.forEach(r => {
+      const cat = r.category_name || 'ไม่ระบุ';
+      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+    });
+    const topCategories = Object.entries(categoryCounts).sort((a,b) => b[1]-a[1]).slice(0, 6);
+
+    // ---- ยอดตามสาขา (THB เท่านั้น) ----
+    const branchTotals = {};
+    rows.forEach(r => {
+      if (r.currency !== 'THB') return;
+      const bn = r.branches?.branch_name || 'ไม่ระบุสาขา';
+      branchTotals[bn] = (branchTotals[bn] || 0) + Number(r.total_amount || 0);
+    });
+
+    // ---- สถานะปัจจุบัน ----
+    const statusCounts = {};
+    rows.forEach(r => { statusCounts[r.status] = (statusCounts[r.status] || 0) + 1; });
+    const statusLabelMap = {
+      PENDING_HQ_1:'รอ HQ', PENDING_BRANCH:'รอสาขา', PENDING_ACCOUNTING:'รอบัญชี',
+      PENDING_FINANCE:'รอการเงิน', FINANCE_APPROVED:'รอบริหาร', PENDING_REVISION:'ตีกลับแก้ไข', COMPLETED:'เสร็จสิ้น'
+    };
+
+    ['lineChart','donutChart','barChart','pieChart'].forEach(destroyChart);
+
+    chartInstances.lineChart = new Chart(document.getElementById('lineChart'), {
+      type:'line',
+      data:{ labels: monthLabels, datasets:[{ label:'ค่าใช้จ่าย (THB)', data: monthlyThb,
+        borderColor:'#1C3B3A', backgroundColor:'rgba(28,59,58,0.08)', fill:true, tension:0.35, borderWidth:2, pointRadius:3 }] },
+      options:{plugins:{legend:{display:false}}, scales:{y:{grid:{color:'#EFEAE0'}}, x:{grid:{display:false}}}, maintainAspectRatio:false}
+    });
+
+    chartInstances.donutChart = new Chart(document.getElementById('donutChart'), {
+      type:'doughnut',
+      data:{ labels: topCategories.map(c=>c[0]), datasets:[{ data: topCategories.map(c=>c[1]),
+        backgroundColor:['#1C3B3A','#B8863B','#3B6EA5','#C9922E','#6b4c93','#D8D2C4'], borderWidth:0 }] },
+      options:{plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}}, maintainAspectRatio:false, cutout:'62%'}
+    });
+
+    chartInstances.barChart = new Chart(document.getElementById('barChart'), {
+      type:'bar',
+      data:{ labels: Object.keys(branchTotals), datasets:[{ label:'THB', data: Object.values(branchTotals),
+        backgroundColor:'#1C3B3A', borderRadius:6 }] },
+      options:{plugins:{legend:{display:false}}, scales:{y:{grid:{color:'#EFEAE0'}}, x:{grid:{display:false}}}, maintainAspectRatio:false}
+    });
+
+    chartInstances.pieChart = new Chart(document.getElementById('pieChart'), {
+      type:'pie',
+      data:{ labels: Object.keys(statusCounts).map(s=>statusLabelMap[s]||s), datasets:[{ data: Object.values(statusCounts),
+        backgroundColor:['#3B6EA5','#C9922E','#6B4C93','#A33B76','#3F7D58','#B33A3A','#D8D2C4'], borderWidth:0 }] },
+      options:{plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}}, maintainAspectRatio:false}
+    });
+  }
+</script>
+</body>
+</html>
