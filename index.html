@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -9,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root{
     --ink:#20282B;
@@ -315,6 +317,7 @@
       <div class="topbar-right">
         <span class="bell">🔔<span class="dot"></span></span>
         <span class="badge-role" id="roleBadge">สาขา A</span>
+        <button onclick="doLogout()" style="border:1px solid var(--line);background:#fff;padding:6px 12px;border-radius:8px;font-size:12.5px;color:var(--ink-soft);cursor:pointer;">ออกจากระบบ</button>
       </div>
     </div>
 
@@ -376,6 +379,13 @@
           <select><option>ทุกสถานะ</option><option>รอ สนญ.</option><option>รอสาขา</option><option>รอบัญชี</option><option>เสร็จสิ้น</option></select>
           <select><option>ทุกสกุลเงิน</option><option>THB</option><option>USD</option><option>CNY</option></select>
           <input type="text" placeholder="ค้นหาเลขที่ใบวางบิล...">
+        </div>
+
+        <div class="filter-bar" style="align-items:center;">
+          <label style="font-size:13px;color:var(--ink-soft);">Export ตามเดือน (เว้นว่าง = ทั้งหมด):</label>
+          <input type="month" id="exportMonthFilter">
+          <button class="btn-approve" style="background:var(--gold);" onclick="exportAllExcel()">⬇ Export Excel</button>
+          <button class="btn-approve" style="background:#6b4c93;" onclick="exportAllPDF()">⬇ Export PDF</button>
         </div>
 
         <div id="txnListStatus" style="padding:20px;text-align:center;color:var(--ink-soft);">กำลังโหลดข้อมูล...</div>
@@ -680,6 +690,15 @@
     document.getElementById('roleBadge').textContent = roles[roleIdx] + ' (โหมดทดลอง)';
   }
 
+  function doLogout() {
+    currentSession = null;
+    currentProfile = null;
+    document.getElementById('app').classList.remove('active');
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginError').style.display = 'none';
+  }
+
   // ===== ดึงรายการจริงจาก Supabase แล้วจัดกลุ่มตามอินวอยซ์ (NO.) =====
   let txnCache = [];
   let invoiceGroups = {};
@@ -902,7 +921,13 @@
           body: JSON.stringify(cPayload)
         });
         const cData = await cRes.json();
-        if (!cRes.ok) { errBox.textContent = 'สร้างสัญญาไม่สำเร็จ: ' + (cData.message || cRes.status); errBox.style.display = 'block'; return; }
+        if (!cRes.ok) {
+          const isDup = (cData.message || '').includes('duplicate key') || (cData.message || '').includes('_key');
+          errBox.textContent = isDup
+            ? '⚠ เลขที่สัญญานี้มีอยู่ในระบบแล้ว — ถ้าต้องการเพิ่มอินวอยซ์งวดใหม่ให้สัญญาเดิม กรุณาเปลี่ยนโหมดด้านบนเป็น "เพิ่มอินวอยซ์งวดใหม่ให้สัญญาเดิมที่มีอยู่แล้ว" แทน'
+            : 'สร้างสัญญาไม่สำเร็จ: ' + (cData.message || cRes.status);
+          errBox.style.display = 'block'; return;
+        }
         contractId = cData[0].contract_id;
       }
 
@@ -929,7 +954,13 @@
         body: JSON.stringify(iPayload)
       });
       const iData = await iRes.json();
-      if (!iRes.ok) { errBox.textContent = 'สร้างอินวอยซ์ไม่สำเร็จ: ' + (iData.message || iRes.status); errBox.style.display = 'block'; return; }
+      if (!iRes.ok) {
+        const isDup = (iData.message || '').includes('duplicate key') || (iData.message || '').includes('_key');
+        errBox.textContent = isDup
+          ? '⚠ เลขที่อินวอยซ์นี้มีอยู่ในระบบแล้ว กรุณาตั้งเลขใหม่ที่ไม่ซ้ำ'
+          : 'สร้างอินวอยซ์ไม่สำเร็จ: ' + (iData.message || iRes.status);
+        errBox.style.display = 'block'; return;
+      }
 
       alert('สร้างสัญญา/อินวอยซ์สำเร็จ! ต่อไปเพิ่มรายการค่าใช้จ่ายให้อินวอยซ์นี้ได้เลย');
       showPage('new');
@@ -1588,6 +1619,69 @@
       y += 8;
     });
     doc.save(`${activeTxn.bill_no || activeTxn.transaction_id}.pdf`);
+  }
+
+  // ===== Export รวมทั้งชุด / ตามเดือน =====
+  function getExportRows() {
+    const monthVal = document.getElementById('exportMonthFilter').value; // 'YYYY-MM' หรือว่าง
+    if (!monthVal) return txnCache;
+    return txnCache.filter(t => (t.bill_received_date || '').startsWith(monthVal));
+  }
+
+  function exportAllExcel() {
+    const rows = getExportRows();
+    if (!rows.length) { alert('ไม่มีข้อมูลให้ export ตามเงื่อนไขที่เลือก'); return; }
+    const data = rows.map(t => ({
+      'อินวอยซ์': t.invoices?.invoice_no || '',
+      'สัญญา': t.invoices?.contracts?.contract_no || '',
+      'ลูกค้า': t.invoices?.contracts?.customer_name || '',
+      'ประเภทค่าใช้จ่าย': t.category_name || '',
+      'บริษัท/หน่วยงาน': t.vendor_name || '',
+      'เลขที่ใบวางบิล': t.bill_no || '',
+      'วันที่ใบกำกับ': t.bill_date || '',
+      'รับวางบิลวันที่': t.bill_received_date || '',
+      'ยอดก่อน VAT': t.amount_before_vat || '',
+      'VAT': t.vat_amount || '',
+      'ยอดรวม': t.total_amount || '',
+      'สกุลเงิน': t.currency || '',
+      'สถานะ': (statusLabel[t.status] || [t.status])[0],
+      'วันที่จ่าย': t.payment_date || ''
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'รายการค่าใช้จ่าย');
+    const monthVal = document.getElementById('exportMonthFilter').value;
+    XLSX.writeFile(wb, monthVal ? `expenses_${monthVal}.xlsx` : `expenses_all.xlsx`);
+  }
+
+  function exportAllPDF() {
+    const rows = getExportRows();
+    if (!rows.length) { alert('ไม่มีข้อมูลให้ export ตามเงื่อนไขที่เลือก'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const monthVal = document.getElementById('exportMonthFilter').value;
+    doc.setFontSize(14);
+    doc.text(`KS AGRO - สรุปรายการค่าใช้จ่าย${monthVal ? ' เดือน ' + monthVal : ' (ทั้งหมด)'}`, 14, 15);
+
+    const head = [['อินวอยซ์','ประเภทค่าใช้จ่าย','บริษัท/หน่วยงาน','เลขที่บิล','ยอดรวม','สกุลเงิน','สถานะ']];
+    const body = rows.map(t => [
+      t.invoices?.invoice_no || '-',
+      t.category_name || '-',
+      t.vendor_name || '-',
+      t.bill_no || '-',
+      fmtNum(t.total_amount),
+      t.currency || '-',
+      (statusLabel[t.status] || [t.status])[0]
+    ]);
+
+    doc.autoTable({
+      head, body, startY: 22, styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [28,59,58], textColor: 255 },
+      alternateRowStyles: { fillColor: [247,244,238] },
+      columnStyles: { 4: { halign: 'right' } }
+    });
+
+    doc.save(monthVal ? `expenses_${monthVal}.pdf` : `expenses_all.pdf`);
   }
 
   const titles = {dashboard:'แดชบอร์ด', list:'รายการตรวจสอบ', new:'เพิ่มรายการใหม่', newcontract:'สร้างสัญญา/อินวอยซ์ใหม่', contracts:'สัญญา', invoice:'รายละเอียดอินวอยซ์'};
