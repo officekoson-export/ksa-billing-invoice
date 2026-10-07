@@ -662,7 +662,16 @@
       const authData = await authRes.json();
 
       if (!authRes.ok) {
-        errBox.textContent = 'เข้าสู่ระบบไม่สำเร็จ: อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+        // แสดงสาเหตุจริงจาก Supabase แทนที่จะบอกว่า "รหัสผ่านผิด" ทุกกรณี
+        const code = authData.error_code || authData.error || '';
+        const raw = authData.msg || authData.error_description || authData.message || ('HTTP ' + authRes.status);
+        let hint;
+        if (code === 'email_not_confirmed' || /not confirmed/i.test(raw)) hint = 'อีเมลนี้ยังไม่ได้ยืนยันในระบบ';
+        else if (code === 'invalid_credentials' || /invalid login/i.test(raw)) hint = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง (หรือไม่มีอีเมลนี้ในระบบ)';
+        else if (code === 'user_banned' || /banned/i.test(raw)) hint = 'บัญชีนี้ถูกระงับการใช้งาน';
+        else if (authRes.status === 429 || /rate limit|too many/i.test(raw)) hint = 'ลองเข้าระบบถี่เกินไป กรุณารอสักครู่แล้วลองใหม่';
+        else hint = 'เกิดข้อผิดพลาดจากระบบ';
+        errBox.textContent = `เข้าสู่ระบบไม่สำเร็จ: ${hint} [${code || authRes.status}: ${raw}]`;
         errBox.style.display = 'block';
         return;
       }
@@ -682,7 +691,7 @@
       const profData = await profRes.json();
 
       if (!profRes.ok || !profData.length) {
-        errBox.textContent = 'ล็อกอินสำเร็จ แต่ยังไม่มีข้อมูล role ผูกไว้ในระบบ (ตาราง user_profiles) — ติดต่อผู้ดูแลระบบ';
+        errBox.textContent = 'ล็อกอินสำเร็จ แต่ยังไม่มีข้อมูล role ผูกไว้ในระบบ (ตาราง user_profiles) — ติดต่อผู้ดูแลระบบ' + (profRes.ok ? '' : ` [${profData.message || profRes.status}]`);
         errBox.style.display = 'block';
         return;
       }
