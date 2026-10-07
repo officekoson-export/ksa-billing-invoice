@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -202,6 +201,19 @@
   .check-item.got{background:var(--done-soft);color:var(--done);}
   .check-item.missing{background:#F0EDE3;color:var(--ink-soft);}
 
+  .nav-item .tasks-count{margin-left:auto;font-weight:700;color:var(--gold-soft);font-size:12.5px;}
+  .bottom-nav .tasks-count{font-size:10px;font-weight:700;}
+  .task-inv{border:1px solid var(--line);border-radius:10px;margin-top:10px;background:#fff;}
+  .task-inv summary{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;font-size:13.5px;list-style:none;flex-wrap:wrap;}
+  .task-inv summary::-webkit-details-marker{display:none;}
+  .task-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid #F0EDE3;font-size:13px;}
+  .task-row .task-main{flex:1;min-width:0;}
+  .task-sub{color:var(--ink-soft);font-size:12px;}
+  .task-row input[type=checkbox], .task-inv summary input[type=checkbox], #page-tasks h3 + div input[type=checkbox]{width:18px;height:18px;accent-color:var(--primary);flex-shrink:0;}
+  .task-act:disabled{opacity:0.45;cursor:not-allowed;}
+  .icon-btn{border:1px solid var(--line);background:#fff;border-radius:8px;width:32px;height:32px;font-size:14px;cursor:pointer;}
+  .icon-btn:hover{background:var(--gold-soft);}
+  .icon-btn.danger:hover{background:var(--reject-soft);}
   .dept-badges{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
   .dept-badge{
     display:flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:100px;
@@ -261,7 +273,7 @@
   @media print {
     .sidebar, .topbar, .bottom-nav, .modal-overlay { display:none !important; }
     .content { padding:0 !important; }
-    #page-dashboard, #page-list, #page-new, #page-contracts { display:none !important; }
+    #page-tasks, #page-dashboard, #page-list, #page-new, #page-newcontract, #page-contracts { display:none !important; }
     #page-invoice { display:block !important; }
     body { background:#fff; }
   }
@@ -300,6 +312,7 @@
 <div id="app">
   <aside class="sidebar">
     <div class="brand-mark">KS</div>
+    <button class="nav-item" data-page="tasks"><span class="ic">✅</span> งานของฉัน <span class="tasks-count"></span></button>
     <button class="nav-item active" data-page="dashboard"><span class="ic">◆</span> แดชบอร์ด</button>
     <button class="nav-item" data-page="list"><span class="ic">☰</span> รายการตรวจสอบ</button>
     <button class="nav-item" data-page="new"><span class="ic">＋</span> เพิ่มรายการใหม่</button>
@@ -370,6 +383,12 @@
             <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
           </div>
         </div>
+      </div>
+
+      <!-- ---------- MY TASKS PAGE ---------- -->
+      <div id="page-tasks" style="display:none;">
+        <div id="tasksStatus" style="padding:12px 0;color:var(--ink-soft);font-size:13px;">กำลังโหลดงานของคุณ...</div>
+        <div id="tasksContainer"></div>
       </div>
 
       <!-- ---------- LIST PAGE ---------- -->
@@ -593,6 +612,7 @@
 
 <!-- mobile bottom nav -->
 <div class="bottom-nav">
+  <button data-page="tasks"><span class="ic">✅</span>งานฉัน<span class="tasks-count"></span></button>
   <button class="active" data-page="dashboard"><span class="ic">◆</span>แดชบอร์ด</button>
   <button data-page="list"><span class="ic">☰</span>รายการ</button>
   <button data-page="new"><span class="ic">＋</span>เพิ่ม</button>
@@ -673,7 +693,7 @@
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('app').classList.add('active');
       document.getElementById('roleBadge').textContent = `${currentProfile.full_name} · ${currentProfile.role}`;
-      loadDashboard();
+      showPage('tasks');
 
     } catch (e) {
       errBox.textContent = 'เชื่อมต่อระบบไม่สำเร็จ: ' + e.message;
@@ -707,6 +727,7 @@
     PENDING_BRANCH: ['รอสาขาตรวจสอบ','st-branch'],
     PENDING_ACCOUNTING: ['รอฝ่ายบัญชี','st-acct'],
     PENDING_FINANCE: ['รอฝ่ายการเงิน','st-acct'],
+    PENDING_FIN_MGR: ['รอ ผจก.การเงิน','st-acct'],
     FINANCE_APPROVED: ['รอฝ่ายบริหารอนุมัติจ่าย','st-mgmt'],
     PENDING_REVISION: ['ตีกลับแก้ไข','st-branch'],
     COMPLETED: ['เสร็จสิ้น','st-done']
@@ -723,7 +744,7 @@
       const [txnRes, invRes] = await Promise.all([
         fetch(`${SUPABASE_URL}/rest/v1/transactions?select=*,invoices(invoice_no,management_status,contracts(contract_no,customer_name))&is_deleted=eq.false&order=created_at.desc&limit=500`,
           { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }),
-        fetch(`${SUPABASE_URL}/rest/v1/invoices?select=invoice_id,invoice_no,management_status,contracts(contract_no,customer_name)&order=created_at.desc&limit=1000`,
+        fetch(`${SUPABASE_URL}/rest/v1/invoices?select=invoice_id,invoice_no,management_status,contracts(contract_no,customer_name)&is_deleted=eq.false&order=created_at.desc&limit=1000`,
           { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } })
       ]);
       const data = await txnRes.json();
@@ -811,6 +832,7 @@
       const branchDone = !isEmpty && deptDone(g.items,'branch_check_status',['CHECKED']);
       const acctDone = !isEmpty && deptDone(g.items,'accounting_check_status',['CHECKED','DATA_RECORDED']);
       const finDone = !isEmpty && deptDone(g.items,'finance_check_status',['CHECKED','PAYMENT_REQUESTED']);
+      const finMgrDone = !isEmpty && deptDone(g.items,'finance_mgr_check_status',['CHECKED']);
       const mgmtDone = !isEmpty && deptDone(g.items,'management_check_status',['APPROVED_PAID']);
       return `
       <div class="txn-card" style="cursor:pointer;${isEmpty ? 'opacity:0.7;border-style:dashed;' : ''}" onclick="openInvoiceModal('${g.invoice_id}')">
@@ -820,6 +842,10 @@
             <div class="txn-title">สัญญา ${g.contract_no}${g.customer_name ? ' — '+g.customer_name : ''}</div>
             <div class="txn-meta">${isEmpty ? '⚪ ยังไม่มีรายการค่าใช้จ่าย — กด "เพิ่มรายการใหม่" เพื่อเริ่มบันทึก' : g.items.length + ' รายการค่าใช้จ่าย'}</div>
           </div>
+          <div style="display:flex;gap:6px;">
+            <button title="แก้ไขอินวอยซ์นี้" class="icon-btn" onclick="event.stopPropagation(); editInvoiceFromList('${g.invoice_id}')">✎</button>
+            ${isAdminUser() ? `<button title="ลบอินวอยซ์นี้" class="icon-btn danger" onclick="event.stopPropagation(); deleteInvoice('${g.invoice_id}')">🗑</button>` : ''}
+          </div>
         </div>
         ${isEmpty ? '' : `
         <div class="dept-badges">
@@ -827,6 +853,7 @@
           ${deptBadge('สาขา', branchDone)}
           ${deptBadge('บัญชี', acctDone)}
           ${deptBadge('การเงิน', finDone)}
+          ${deptBadge('ผจก.การเงิน', finMgrDone)}
           ${deptBadge('บริหาร', mgmtDone)}
         </div>`}
       </div>`;
@@ -848,7 +875,11 @@
             </div>
             <div style="text-align:right;">
               <span class="status-pill ${st[1]}">${st[0]}</span><br>
-              <button class="btn-approve" style="margin-top:6px;padding:5px 10px;font-size:11.5px;" onclick="openDetailFromInvoice('${t.transaction_id}','${invoiceId}')">รายละเอียด</button>
+              <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px;">
+                <button class="btn-approve" style="padding:5px 10px;font-size:11.5px;" onclick="openDetailFromInvoice('${t.transaction_id}','${invoiceId}')">รายละเอียด</button>
+                <button title="แก้ไขรายการนี้" class="icon-btn" onclick="openDetailFromInvoice('${t.transaction_id}','${invoiceId}'); toggleOrSaveEdit();">✎</button>
+                ${isAdminUser() ? `<button title="ลบรายการนี้" class="icon-btn danger" onclick="deleteTxnFromInvoice('${t.transaction_id}','${invoiceId}')">🗑</button>` : ''}
+              </div>
             </div>
           </div>`;
         }).join('')
@@ -864,6 +895,279 @@
     document.getElementById('invoiceModal').style.display = 'flex';
   }
   // ===== หน้าสร้างสัญญา/อินวอยซ์ใหม่ =====
+  // ===== หน้า "งานของฉัน" — งานที่ถึงคิวของ role ตัวเอง + ดำเนินการหลายรายการพร้อมกัน =====
+  const TASK_STAGES = {
+    hq:          { label:'สนง.ใหญ่ ตรวจสอบ',                status:'PENDING_HQ_1',       col:'hq_check_status',          actions:[['CHECKED','ตรวจแล้ว']] },
+    branch:      { label:'สาขา ตรวจสอบ',                     status:'PENDING_BRANCH',     col:'branch_check_status',      actions:[['CHECKED','ตรวจแล้ว']] },
+    accounting:  { label:'บัญชี ตรวจ & คีย์ข้อมูล',          status:'PENDING_ACCOUNTING', col:'accounting_check_status',  actions:[['CHECKED','ตรวจแล้ว'],['DATA_RECORDED','บันทึกข้อมูลแล้ว']] },
+    finance:     { label:'การเงิน ตรวจสอบ & ตั้งเบิกจ่าย',   status:'PENDING_FINANCE',    col:'finance_check_status',     actions:[['CHECKED','ตรวจแล้ว'],['PAYMENT_REQUESTED','ตั้งเบิกรอจ่าย']] },
+    finance_mgr: { label:'ผจก.การเงิน ตรวจสอบ',              status:'PENDING_FIN_MGR',    col:'finance_mgr_check_status', actions:[['CHECKED','ตรวจแล้ว']] },
+    management:  { label:'ฝ่ายบริหาร อนุมัติ/จ่าย',           status:'FINANCE_APPROVED',   col:'management_check_status',  actions:[['APPROVED_PAID','อนุมัติ/จ่ายแล้ว']] }
+  };
+  const TASK_ROLE_STAGES = {
+    HQ:['hq'], BRANCH:['branch'], ACCOUNTING:['accounting'], FINANCE:['finance'],
+    FINANCE_MGR:['finance_mgr'], MANAGEMENT:['management'],
+    ADMIN:['hq','branch','accounting','finance','finance_mgr','management']
+  };
+  const TASK_ROLE_NAME = {
+    HQ:'สำนักงานใหญ่', BRANCH:'สาขา', ACCOUNTING:'ฝ่ายบัญชี', FINANCE:'ฝ่ายการเงิน',
+    FINANCE_MGR:'ผจก.การเงิน', MANAGEMENT:'ฝ่ายบริหาร', ADMIN:'ผู้ดูแลระบบ (เห็นทุกขั้นตอน)'
+  };
+  let tasksData = [];
+  let revisionData = [];
+  let taskSelected = new Set();
+
+  const escHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function sumByCurrency(rows) {
+    const m = {};
+    rows.forEach(t => { m[t.currency] = (m[t.currency] || 0) + (Number(t.total_amount) || 0); });
+    return Object.entries(m).map(([c, v]) => `${fmtNum(v)} ${c}`).join(' · ') || '-';
+  }
+
+  function mergeIntoTxnCache(rows) {
+    rows.forEach(r => {
+      const i = txnCache.findIndex(x => x.transaction_id === r.transaction_id);
+      if (i > -1) txnCache[i] = r; else txnCache.push(r);
+    });
+  }
+
+  async function loadMyTasks() {
+    if (!currentProfile) return;
+    const statusBox = document.getElementById('tasksStatus');
+    const container = document.getElementById('tasksContainer');
+    statusBox.style.display = 'block';
+    statusBox.textContent = 'กำลังโหลดงานของคุณ...';
+    const role = currentProfile.role;
+    const stageKeys = TASK_ROLE_STAGES[role] || [];
+    if (!stageKeys.length) {
+      container.innerHTML = '';
+      statusBox.textContent = 'บัญชีนี้ยังไม่ได้กำหนดสิทธิ์ที่ใช้กับหน้านี้';
+      return;
+    }
+    const statuses = stageKeys.map(k => TASK_STAGES[k].status);
+    const branchFilter = (role === 'BRANCH' && currentProfile.branch_id) ? `&branch_id=eq.${currentProfile.branch_id}` : '';
+    const select = 'select=*,invoices(invoice_no,contracts(contract_no,customer_name)),branches(branch_name)';
+    const headers = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` };
+    try {
+      const [pRes, rRes] = await Promise.all([
+        fetch(`${SUPABASE_URL}/rest/v1/transactions?${select}&is_deleted=eq.false&status=in.(${statuses.join(',')})${branchFilter}&order=created_at.asc&limit=1000`, { headers }),
+        fetch(`${SUPABASE_URL}/rest/v1/transactions?${select}&is_deleted=eq.false&status=eq.PENDING_REVISION${branchFilter}&order=updated_at.desc&limit=200`, { headers })
+      ]);
+      const pending = await pRes.json();
+      const revisions = await rRes.json();
+      if (!pRes.ok) { statusBox.textContent = 'โหลดงานไม่สำเร็จ: ' + (pending.message || pRes.status); return; }
+      tasksData = pending;
+      revisionData = rRes.ok
+        ? revisions.filter(t => role === 'ADMIN' || stageKeys.some(k => t[TASK_STAGES[k].col] === 'REJECTED'))
+        : [];
+      mergeIntoTxnCache(tasksData.concat(revisionData));
+      const ids = new Set(tasksData.map(t => t.transaction_id));
+      taskSelected = new Set([...taskSelected].filter(id => ids.has(id)));
+      statusBox.style.display = 'none';
+      renderMyTasks();
+    } catch (e) {
+      statusBox.textContent = 'เชื่อมต่อไม่สำเร็จ: ' + e.message;
+    }
+  }
+
+  function renderMyTasks() {
+    const container = document.getElementById('tasksContainer');
+    const role = currentProfile.role;
+    const stageKeys = TASK_ROLE_STAGES[role] || [];
+    const total = tasksData.length;
+    const badge = total + revisionData.length;
+    document.querySelectorAll('.tasks-count').forEach(el => { el.textContent = badge ? `(${badge})` : ''; });
+
+    let html = `<div class="panel" style="margin-bottom:16px;">
+      <div style="font-size:15px;font-weight:700;">งานของ ${escHtml(TASK_ROLE_NAME[role] || role)}</div>
+      <div class="txn-meta" style="margin-top:4px;">รอดำเนินการ ${total} รายการ${revisionData.length ? ` · ตีกลับรอแก้ไข ${revisionData.length} รายการ` : ''}</div>
+      <div class="txn-meta" style="margin-top:6px;">ติ๊กเลือกรายการแล้วกดปุ่มของหมวดเพื่อดำเนินการหลายรายการพร้อมกัน — ถ้าพบข้อผิดพลาดให้กด "รายละเอียด" เพื่อตีกลับพร้อมเหตุผลเป็นรายการ</div>
+    </div>`;
+
+    if (revisionData.length) {
+      html += `<div class="panel" style="margin-bottom:16px;border-color:#E8B4B4;">
+        <h3 style="color:var(--reject);">⚠ ตีกลับรอแก้ไข (${revisionData.length})</h3>` +
+        revisionData.map(t => `<div class="task-row">
+          <div class="task-main">
+            <div style="font-weight:600;">${escHtml(t.invoices?.invoice_no || '-')} · ${escHtml(t.category_name)}${t.vendor_name ? ' — ' + escHtml(t.vendor_name) : ''}</div>
+            <div class="task-sub">เหตุผล: ${escHtml(t.note || '(ไม่ได้ระบุ)')}</div>
+          </div>
+          <button class="btn-approve" style="padding:5px 10px;font-size:11.5px;background:var(--reject);" onclick="openTaskDetail('${t.transaction_id}')">เปิดแก้ไข</button>
+        </div>`).join('') + `</div>`;
+    }
+
+    stageKeys.forEach(sk => {
+      const st = TASK_STAGES[sk];
+      const rows = tasksData.filter(t => t.status === st.status);
+      if (!rows.length) return;
+      const byInv = {};
+      rows.forEach(t => {
+        const g = byInv[t.invoice_id] = byInv[t.invoice_id] || {
+          no: t.invoices?.invoice_no || '-',
+          contract: t.invoices?.contracts?.contract_no || '-',
+          customer: t.invoices?.contracts?.customer_name || '',
+          items: []
+        };
+        g.items.push(t);
+      });
+      const openAttr = rows.length <= 30 ? 'open' : '';
+      html += `<div class="panel" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+          <h3 style="margin:0;">รอ ${escHtml(st.label)} (${rows.length})</h3>
+          <label style="font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" onchange="toggleStageAll('${sk}', this.checked)"> เลือกทั้งหมดในหมวดนี้
+          </label>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0 4px;">
+          ${st.actions.map(([val, lbl], i) => `<button class="btn-approve task-act" data-stage="${sk}" style="${i ? 'background:var(--gold);' : ''}" onclick="bulkApply('${sk}','${val}')" disabled>✓ ${escHtml(lbl)} (<span class="task-count" data-stage="${sk}">0</span>)</button>`).join('')}
+          <span class="txn-meta task-sum" data-stage="${sk}"></span>
+        </div>` +
+        Object.entries(byInv).map(([invId, g]) => `
+        <details class="task-inv" ${openAttr}>
+          <summary>
+            <input type="checkbox" class="task-inv-cb" data-stage="${sk}" data-inv="${invId}" onclick="event.stopPropagation()" onchange="toggleInvoiceTasks('${sk}','${invId}', this.checked)">
+            <span style="font-weight:600;">${escHtml(g.no)}</span>
+            <span class="txn-meta">สัญญา ${escHtml(g.contract)}${g.customer ? ' — ' + escHtml(g.customer) : ''} · ${g.items.length} รายการ</span>
+          </summary>
+          ${g.items.map(t => `
+          <div class="task-row">
+            <input type="checkbox" class="task-cb" data-id="${t.transaction_id}" data-stage="${sk}" data-inv="${invId}" ${taskSelected.has(t.transaction_id) ? 'checked' : ''} onchange="toggleTask('${t.transaction_id}', this.checked)">
+            <div class="task-main">
+              <div style="font-weight:600;">${escHtml(t.category_name)}${t.vendor_name ? ' — ' + escHtml(t.vendor_name) : ''}</div>
+              <div class="task-sub">บิล #${escHtml(t.bill_no || '-')} · ${fmtNum(t.total_amount)} ${escHtml(t.currency)}${t.branches?.branch_name ? ' · ' + escHtml(t.branches.branch_name) : ''}</div>
+            </div>
+            <button class="btn-approve" style="padding:5px 10px;font-size:11.5px;" onclick="openTaskDetail('${t.transaction_id}')">รายละเอียด</button>
+          </div>`).join('')}
+        </details>`).join('') + `</div>`;
+    });
+
+    if (!total && !revisionData.length) {
+      html += `<div class="panel" style="text-align:center;padding:30px;color:var(--ink-soft);">🎉 ไม่มีงานค้างในคิวของคุณตอนนี้</div>`;
+    }
+    container.innerHTML = html;
+    updateTaskCounts();
+  }
+
+  function selectTasks(filterFn, checked) {
+    tasksData.filter(filterFn).forEach(t => { if (checked) taskSelected.add(t.transaction_id); else taskSelected.delete(t.transaction_id); });
+    updateTaskCounts();
+  }
+  function toggleTask(id, checked) { if (checked) taskSelected.add(id); else taskSelected.delete(id); updateTaskCounts(); }
+  function toggleStageAll(sk, checked) { selectTasks(t => t.status === TASK_STAGES[sk].status, checked); }
+  function toggleInvoiceTasks(sk, invId, checked) { selectTasks(t => t.status === TASK_STAGES[sk].status && t.invoice_id === invId, checked); }
+
+  function updateTaskCounts() {
+    document.querySelectorAll('.task-cb').forEach(cb => { cb.checked = taskSelected.has(cb.dataset.id); });
+    document.querySelectorAll('.task-inv-cb').forEach(cb => {
+      const items = tasksData.filter(t => t.status === TASK_STAGES[cb.dataset.stage].status && t.invoice_id === cb.dataset.inv);
+      cb.checked = items.length > 0 && items.every(t => taskSelected.has(t.transaction_id));
+    });
+    Object.keys(TASK_STAGES).forEach(sk => {
+      const sel = tasksData.filter(t => t.status === TASK_STAGES[sk].status && taskSelected.has(t.transaction_id));
+      document.querySelectorAll(`.task-count[data-stage="${sk}"]`).forEach(el => { el.textContent = sel.length; });
+      document.querySelectorAll(`.task-act[data-stage="${sk}"]`).forEach(b => { b.disabled = sel.length === 0; });
+      document.querySelectorAll(`.task-sum[data-stage="${sk}"]`).forEach(el => { el.textContent = sel.length ? `ที่เลือก: ${sumByCurrency(sel)}` : ''; });
+    });
+  }
+
+  async function bulkApply(sk, value) {
+    const st = TASK_STAGES[sk];
+    const rows = tasksData.filter(t => t.status === st.status && taskSelected.has(t.transaction_id));
+    if (!rows.length) return;
+    const actionLabel = st.actions.find(a => a[0] === value)[1];
+    if (!confirm(`ยืนยัน "${actionLabel}" จำนวน ${rows.length} รายการ ใช่หรือไม่?\nยอดรวม: ${sumByCurrency(rows)}`)) return;
+
+    const ids = rows.map(t => t.transaction_id);
+    const patch = {
+      [st.col]: value,
+      [`${sk}_checked_by`]: currentSession.user.id,
+      [`${sk}_checked_at`]: new Date().toISOString()
+    };
+    let done = 0, hadError = false;
+    try {
+      for (let i = 0; i < ids.length; i += 40) {
+        const chunk = ids.slice(i, i + 40);
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/transactions?transaction_id=in.(${chunk.join(',')})`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}`,
+            'Content-Type': 'application/json', 'Prefer': 'return=representation'
+          },
+          body: JSON.stringify(patch)
+        });
+        const data = await res.json();
+        if (!res.ok) { hadError = true; alert(`บันทึกไม่สำเร็จ: ${data.message || res.status}\n(สำเร็จแล้ว ${done} จาก ${ids.length} รายการ)`); break; }
+        done += data.length;
+      }
+    } catch (e) { hadError = true; alert('เชื่อมต่อไม่สำเร็จ: ' + e.message); }
+
+    taskSelected.clear();
+    await loadMyTasks();
+    if (!hadError && done < ids.length) {
+      alert(`ดำเนินการสำเร็จ ${done} จาก ${ids.length} รายการ\nรายการที่เหลืออาจไม่มีสิทธิ์ หรือมีคนเปลี่ยนสถานะไปแล้ว`);
+    } else if (!hadError) {
+      const box = document.getElementById('tasksStatus');
+      box.style.display = 'block';
+      box.textContent = `✓ ดำเนินการ "${actionLabel}" แล้ว ${done} รายการ`;
+      setTimeout(() => { if (box.textContent.startsWith('✓')) box.style.display = 'none'; }, 4000);
+    }
+  }
+
+  function openTaskDetail(id) {
+    cameFromInvoiceId = null;
+    openDetail(id);
+  }
+
+  function isAdminUser() { return currentProfile && currentProfile.role === 'ADMIN'; }
+
+  // ✎ จากหน้ารายการ -> เปิดหน้ารายละเอียดอินวอยซ์ในโหมดแก้ไขทันที
+  async function editInvoiceFromList(invoiceId) {
+    await openInvoiceDetailPage(invoiceId);
+    invoicePriceEditMode = true;
+    renderInvoiceDetailPage();
+  }
+
+  // 🗑 ลบอินวอยซ์ (ซ่อนทั้งอินวอยซ์และรายการค่าใช้จ่ายทั้งหมด) — เฉพาะ ADMIN
+  async function deleteInvoice(invoiceId) {
+    const g = invoiceGroups[invoiceId];
+    if (!g) return;
+    const msg = `ยืนยันลบอินวอยซ์ "${g.invoice_no}" ใช่หรือไม่?\n` +
+      (g.items.length ? `รายการค่าใช้จ่ายทั้งหมด ${g.items.length} รายการในอินวอยซ์นี้จะถูกซ่อนไปด้วย\n` : '') +
+      `(เป็นการซ่อนออกจากระบบ ไม่ได้ลบถาวร)`;
+    if (!confirm(msg)) return;
+    const headers = {
+      'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}`,
+      'Content-Type': 'application/json'
+    };
+    try {
+      const r1 = await fetch(`${SUPABASE_URL}/rest/v1/transactions?invoice_id=eq.${invoiceId}`,
+        { method: 'PATCH', headers, body: JSON.stringify({ is_deleted: true }) });
+      if (!r1.ok) { const d = await r1.json(); alert('ลบรายการค่าใช้จ่ายไม่สำเร็จ: ' + (d.message || r1.status)); return; }
+      const r2 = await fetch(`${SUPABASE_URL}/rest/v1/invoices?invoice_id=eq.${invoiceId}`,
+        { method: 'PATCH', headers, body: JSON.stringify({ is_deleted: true }) });
+      if (!r2.ok) { const d = await r2.json(); alert('ลบอินวอยซ์ไม่สำเร็จ: ' + (d.message || r2.status)); return; }
+      await loadTransactionList();
+    } catch (e) { alert('เชื่อมต่อไม่สำเร็จ: ' + e.message); }
+  }
+
+  // 🗑 ลบรายการค่าใช้จ่ายเดี่ยว จากใน popup อินวอยซ์
+  async function deleteTxnFromInvoice(txnId, invoiceId) {
+    const t = txnCache.find(x => x.transaction_id === txnId);
+    if (!t) return;
+    if (!confirm(`ยืนยันลบรายการ "${t.category_name}" (บิล #${t.bill_no || '-'}) ใช่หรือไม่?\n(เป็นการซ่อนออกจากระบบ ไม่ได้ลบถาวร)`)) return;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/transactions?transaction_id=eq.${txnId}`, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_deleted: true })
+      });
+      if (!res.ok) { const d = await res.json(); alert('ลบไม่สำเร็จ: ' + (d.message || res.status)); return; }
+      await loadTransactionList();
+      openInvoiceModal(invoiceId);
+    } catch (e) { alert('เชื่อมต่อไม่สำเร็จ: ' + e.message); }
+  }
+
   function closeInvoiceModal(){ document.getElementById('invoiceModal').style.display='none'; }
 
   function toggleContractMode() {
@@ -985,7 +1289,7 @@
       const [cRes, iRes, tRes] = await Promise.all([
         fetch(`${SUPABASE_URL}/rest/v1/contracts?select=*&order=contract_no.asc&limit=500`,
           { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }),
-        fetch(`${SUPABASE_URL}/rest/v1/invoices?select=invoice_id,invoice_no,contract_id,invoice_value,currency,exchange_base_rate&limit=1000`,
+        fetch(`${SUPABASE_URL}/rest/v1/invoices?select=invoice_id,invoice_no,contract_id,invoice_value,currency,exchange_base_rate&is_deleted=eq.false&limit=1000`,
           { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }),
         fetch(`${SUPABASE_URL}/rest/v1/transactions?select=invoice_id,total_amount,currency&is_deleted=eq.false&limit=2000`,
           { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } })
@@ -1114,6 +1418,19 @@
   }
 
   const invoiceEditableFields = [
+    ['invoice_no','เลขที่อินวอยซ์','text'],
+    ['application_name','APPLICATION NAME','text'],
+    ['invoice_value','มูลค่าอินวอยซ์ (TOTAL AMOUNT)','number'],
+    ['currency','สกุลเงินของอินวอยซ์','select',['USD','THB','CNY']],
+    ['exchange_base_rate','EXCHANGE BASE RATE (บาท/USD)','number'],
+    ['container_count','จำนวนตู้','number'],
+    ['tonnage','จำนวนตัน','number'],
+    ['packing_kgs','แพ็คกิ้ง (กก.)','number'],
+    ['price_basis','ราคาที่ใช้ขายจริง (basis)','select',['','FOB','CFR','CIF']],
+    ['price_per_mt','ราคา/MT','number'],
+    ['commission','COMM','number'],
+    ['total_commission','TOTAL COMM','number'],
+    ['shipment_date','วันที่ส่งของ','date'],
     ['payment_type','เงื่อนไขการชำระเงิน','select',['','T/T','L/C']],
     ['tt_terms','รายละเอียด T/T (เช่น T/T 30% & T/T 70%)','text'],
     ['lc_no','L/C NO.','text'],
@@ -1143,6 +1460,7 @@
       const el = document.getElementById('edit_' + key);
       patch[key] = el.value || null;
     });
+    if (!patch.invoice_no) { alert('เลขที่อินวอยซ์ห้ามเว้นว่าง'); return; }
     try {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/invoices?invoice_id=eq.${invoiceDetailState.invoiceId}`, {
         method: 'PATCH',
@@ -1153,7 +1471,10 @@
         body: JSON.stringify(patch)
       });
       const data = await res.json();
-      if (!res.ok) { alert('บันทึกไม่สำเร็จ: ' + (data.message || res.status)); return; }
+      if (!res.ok) {
+        alert((data.message || '').includes('duplicate key') ? 'เลขที่อินวอยซ์นี้ซ้ำกับอินวอยซ์อื่นในระบบ กรุณาใช้เลขอื่น' : 'บันทึกไม่สำเร็จ: ' + (data.message || res.status));
+        return;
+      }
       invoiceDetailState.inv = { ...invoiceDetailState.inv, ...data[0] };
       invoicePriceEditMode = false;
       renderInvoiceDetailPage();
@@ -1218,14 +1539,6 @@
           <div class="panel">
             <h3>ข้อมูลสัญญา/อินวอยซ์</h3>
             ${field('นายหน้า (Broker)', contract.broker)}
-            ${field('APPLICATION NAME', inv.application_name)}
-            ${field('COMM', fmtNum(inv.commission))}
-            ${field('TOTAL COMM', fmtNum(inv.total_commission))}
-            ${field('EXCHANGE BASE RATE', inv.exchange_base_rate ? fmtNum(inv.exchange_base_rate) + ' บาท/USD' : '')}
-            ${field('จำนวนตู้', inv.container_count)}
-            ${field('จำนวนตัน', inv.tonnage)}
-            ${field('แพ็คกิ้ง (กก.)', inv.packing_kgs)}
-            ${field('ราคาที่ใช้ขายจริง', inv.price_basis ? `${inv.price_basis} ${fmtNum(inv.price_per_mt)}/MT` : '')}
             ${field('การคำนวณยอดขาย (อัตโนมัติ)', (inv.price_per_mt && inv.tonnage) ? `${inv.price_basis||''} ${fmtNum(inv.price_per_mt)} x ${fmtNum(inv.tonnage)} ตัน = ${fmtNum(inv.price_per_mt*inv.tonnage)} ${inv.currency||''}` : '')}
             ${field('PO# โรงแป้ง (ทุก PO ในอินวอยซ์นี้ — แก้ไขที่ตัวรายการ)', items.filter(t=>(t.category_name||'').includes('โรงแป้ง') && t.po_no).map(t=>t.po_no).join(', '))}
             ${priceEditRow}
@@ -1295,6 +1608,8 @@
     document.getElementById('detailModal').style.display = 'none';
     document.getElementById('backToInvoiceBtn').style.display = 'none';
     activeTxn = null; editMode = false;
+    const tp = document.getElementById('page-tasks');
+    if (tp && tp.style.display === 'block' && currentSession) loadMyTasks();
   }
 
   const deptOptions = {
@@ -1302,9 +1617,10 @@
     branch: [['PENDING','รอตรวจ'],['CHECKED','ตรวจแล้ว'],['REJECTED','รีเจค/แก้ไข']],
     accounting: [['PENDING','รอตรวจ'],['CHECKED','ตรวจแล้ว'],['REJECTED','รีเจค/แก้ไข'],['DATA_RECORDED','บันทึกข้อมูลแล้ว']],
     finance: [['PENDING','รอตั้งเบิก'],['CHECKED','ตรวจแล้ว'],['REJECTED','รีเจค/แก้ไข'],['PAYMENT_REQUESTED','ตั้งเบิกรอจ่าย']],
+    finance_mgr: [['PENDING','รอตรวจ'],['CHECKED','ตรวจแล้ว'],['REJECTED','รีเจค/แก้ไข']],
     management: [['PENDING','รอดำเนินการ'],['APPROVED_PAID','อนุมัติ/จ่ายแล้ว']]
   };
-  const deptLabel = { hq:'สนง.ใหญ่ ตรวจสอบ', branch:'สาขา ตรวจสอบ', accounting:'บัญชี ตรวจ & คีย์ข้อมูล', finance:'การเงิน ตรวจสอบ & ตั้งเบิกจ่าย', management:'ฝ่ายบริหาร อนุมัติ/จ่าย (รายบิลนี้)' };
+  const deptLabel = { hq:'สนง.ใหญ่ ตรวจสอบ', branch:'สาขา ตรวจสอบ', accounting:'บัญชี ตรวจ & คีย์ข้อมูล', finance:'การเงิน ตรวจสอบ & ตั้งเบิกจ่าย', finance_mgr:'ผจก.การเงิน ตรวจสอบ', management:'ฝ่ายบริหาร อนุมัติ/จ่าย (รายบิลนี้)' };
 
   function renderDeptRow(dept, enabled) {
     const key = dept + '_check_status';
@@ -1321,6 +1637,7 @@
     const branchDone = activeTxn.branch_check_status === 'CHECKED';
     const acctDone = ['CHECKED','DATA_RECORDED'].includes(activeTxn.accounting_check_status);
     const financeDone = ['CHECKED','PAYMENT_REQUESTED'].includes(activeTxn.finance_check_status);
+    const finMgrDone = activeTxn.finance_mgr_check_status === 'CHECKED';
     return `
       <div style="margin-top:16px;padding-top:12px;border-top:2px solid var(--line);">
         <div style="font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:8px;">สถานะตรวจสอบตามหน่วยงาน (ล็อกลำดับ — อนุมัติจ่ายแยกต่อบิลนี้ ไม่ต้องรอบิลอื่นในอินวอยซ์เดียวกัน)</div>
@@ -1328,7 +1645,8 @@
         ${renderDeptRow('branch', hqDone)}
         ${renderDeptRow('accounting', branchDone)}
         ${renderDeptRow('finance', acctDone)}
-        ${renderDeptRow('management', financeDone)}
+        ${renderDeptRow('finance_mgr', financeDone)}
+        ${renderDeptRow('management', finMgrDone)}
         <button class="btn-approve" style="width:100%;margin-top:10px;" onclick="saveDeptStatus()">💾 บันทึกสถานะตรวจสอบ</button>
       </div>`;
   }
@@ -1383,7 +1701,7 @@
         body: JSON.stringify({
           hq_check_status: 'PENDING', branch_check_status: 'PENDING',
           accounting_check_status: 'PENDING', finance_check_status: 'PENDING',
-          management_check_status: 'PENDING'
+          finance_mgr_check_status: 'PENDING', management_check_status: 'PENDING'
         })
       });
       const data = await res.json();
@@ -1684,7 +2002,7 @@
     doc.save(monthVal ? `expenses_${monthVal}.pdf` : `expenses_all.pdf`);
   }
 
-  const titles = {dashboard:'แดชบอร์ด', list:'รายการตรวจสอบ', new:'เพิ่มรายการใหม่', newcontract:'สร้างสัญญา/อินวอยซ์ใหม่', contracts:'สัญญา', invoice:'รายละเอียดอินวอยซ์'};
+  const titles = {tasks:'งานของฉัน', dashboard:'แดชบอร์ด', list:'รายการตรวจสอบ', new:'เพิ่มรายการใหม่', newcontract:'สร้างสัญญา/อินวอยซ์ใหม่', contracts:'สัญญา', invoice:'รายละเอียดอินวอยซ์'};
   function showPage(name){
     Object.keys(titles).forEach(k=>{
       document.getElementById('page-'+k).style.display = (k===name)?'block':'none';
@@ -1697,13 +2015,14 @@
     if (name === 'dashboard' && currentSession) loadDashboard();
     if (name === 'contracts' && currentSession) loadContractsPage();
     if (name === 'newcontract' && currentSession) loadExistingContractOptions();
+    if (name === 'tasks' && currentSession) loadMyTasks();
   }
 
   // ===== หน้าเพิ่มรายการใหม่ =====
   async function loadNewTransactionForm() {
     try {
       const [invRes, brRes] = await Promise.all([
-        fetch(`${SUPABASE_URL}/rest/v1/invoices?select=invoice_id,invoice_no,contracts(contract_no)&order=invoice_no.asc&limit=500`,
+        fetch(`${SUPABASE_URL}/rest/v1/invoices?select=invoice_id,invoice_no,contracts(contract_no)&is_deleted=eq.false&order=invoice_no.asc&limit=500`,
           { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }),
         fetch(`${SUPABASE_URL}/rest/v1/branches?select=branch_id,branch_name&order=branch_name.asc`,
           { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } })
@@ -1897,7 +2216,7 @@
     rows.forEach(r => { statusCounts[r.status] = (statusCounts[r.status] || 0) + 1; });
     const statusLabelMap = {
       PENDING_HQ_1:'รอ HQ', PENDING_BRANCH:'รอสาขา', PENDING_ACCOUNTING:'รอบัญชี',
-      PENDING_FINANCE:'รอการเงิน', FINANCE_APPROVED:'รอบริหาร', PENDING_REVISION:'ตีกลับแก้ไข', COMPLETED:'เสร็จสิ้น'
+      PENDING_FINANCE:'รอการเงิน', PENDING_FIN_MGR:'รอผจก.การเงิน', FINANCE_APPROVED:'รอบริหาร', PENDING_REVISION:'ตีกลับแก้ไข', COMPLETED:'เสร็จสิ้น'
     };
 
     ['lineChart','donutChart','barChart','pieChart'].forEach(destroyChart);
@@ -1926,7 +2245,7 @@
     chartInstances.pieChart = new Chart(document.getElementById('pieChart'), {
       type:'pie',
       data:{ labels: Object.keys(statusCounts).map(s=>statusLabelMap[s]||s), datasets:[{ data: Object.values(statusCounts),
-        backgroundColor:['#3B6EA5','#C9922E','#6B4C93','#A33B76','#3F7D58','#B33A3A','#D8D2C4'], borderWidth:0 }] },
+        backgroundColor:['#3B6EA5','#C9922E','#6B4C93','#A33B76','#3F7D58','#B33A3A','#D8D2C4','#1C3B3A'], borderWidth:0 }] },
       options:{plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}}, maintainAspectRatio:false}
     });
   }
